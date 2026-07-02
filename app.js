@@ -278,7 +278,7 @@ const addTagBtn           = $('add-tag-btn');
 const storageInfo         = $('storage-info');
 const clearAllDataBtn     = $('clear-all-data-btn');
 const boardsList          = $('boards-list');
-const addBoardBtn         = $('add-project-btn');
+const addBoardBtn         = $('add-board-btn');
 const generateDailyBtn    = $('generate-daily-btn');
 const aiBoardBtn          = $('ai-board-btn');
 const emptyAddBoardBtn    = $('empty-add-board-btn');
@@ -808,7 +808,7 @@ async function promptNewBoard() {
 const addProjectBtn = $('add-project-btn');
 if (addProjectBtn) addProjectBtn.addEventListener('click', promptNewProject);
 if (addBoardBtn) addBoardBtn.addEventListener('click', promptNewBoard);
-if (emptyAddBoardBtn) emptyAddBoardBtn.addEventListener('click', promptNewBoard);
+if (emptyAddBoardBtn) emptyAddBoardBtn.addEventListener('click', promptNewProject);
 
 /* ============================================================
    SWITCH PROJECT / BOARD
