@@ -146,6 +146,14 @@ async function loadState() {
     // Cleanup any corrupted empty projects that got stuck during the bug
     state.projects = state.projects.filter(p => p.boards && p.boards.length > 0);
 
+    // Auto-expire daily projects older than 24 hours
+    state.projects = state.projects.filter(p => {
+      if (p.type === 'daily' && p.createdAt) {
+        return Date.now() - p.createdAt < 24 * 60 * 60 * 1000;
+      }
+      return true;
+    });
+
     // Inject example project if entirely empty
     if (state.projects.length === 0) {
       if (typeof window !== 'undefined' && window.DEFAULT_PROJECT_DATA) {
@@ -270,7 +278,8 @@ const addTagBtn           = $('add-tag-btn');
 const storageInfo         = $('storage-info');
 const clearAllDataBtn     = $('clear-all-data-btn');
 const boardsList          = $('boards-list');
-const addBoardBtn         = $('add-board-btn');
+const addBoardBtn         = $('add-project-btn');
+const generateDailyBtn    = $('generate-daily-btn');
 const aiBoardBtn          = $('ai-board-btn');
 const emptyAddBoardBtn    = $('empty-add-board-btn');
 const exportBtn           = $('export-btn');
@@ -372,9 +381,11 @@ function showToast(msg, type = 'info', duration = 3000) {
 
 let confirmResolve = null;
 
-function showConfirm(title, message) {
+function showConfirm(title, message, okText = 'Delete', okClass = 'btn-danger') {
   confirmTitle.textContent = title;
   confirmMessage.textContent = message;
+  confirmOkBtn.textContent = okText;
+  confirmOkBtn.className = okClass + ' btn-sm';
   confirmOverlay.style.display = 'flex';
   return new Promise(r => { confirmResolve = r; });
 }
@@ -615,13 +626,31 @@ function renderStorageInfo() {
 
 function renderSidebar() {
   boardsList.innerHTML = '';
-  state.projects.forEach(project => {
+  
+  const dailyExists = state.projects.some(p => p.type === 'daily');
+  if (generateDailyBtn) {
+    generateDailyBtn.style.display = dailyExists ? 'none' : 'flex';
+  }
+
+  const sortedProjects = [...state.projects].sort((a, b) => {
+    if (a.type === 'daily' && b.type !== 'daily') return -1;
+    if (a.type !== 'daily' && b.type === 'daily') return 1;
+    return 0;
+  });
+
+  sortedProjects.forEach(project => {
     const isActive = project.id === state.activeProjectId;
     const item = document.createElement('div');
     item.className = 'board-item' + (isActive ? ' active' : '');
     item.dataset.id = project.id;
     let totalTasks = 0;
     project.boards.forEach(b => b.columns.forEach(c => totalTasks += c.cards.length));
+    
+    let badgeHtml = '';
+    if (project.type === 'daily' && project.createdAt) {
+      const hoursLeft = Math.max(1, Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - project.createdAt)) / (1000 * 60 * 60)));
+      badgeHtml = `<span style="background:var(--neon-pink); color:#000; font-size:10px; padding:2px 6px; border-radius:10px; font-weight:bold; margin-left:6px; flex-shrink:0;">${hoursLeft}h left</span>`;
+    }
 
     item.innerHTML = `
       <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
@@ -630,7 +659,10 @@ function renderSidebar() {
           <rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
         </svg>
         <div style="display:flex; flex-direction:column; min-width:0; overflow:hidden;">
-          <span class="board-item-name" style="margin-bottom:2px;" title="${escHtml(project.name)}">${escHtml(project.name)}</span>
+          <div style="display:flex; align-items:center;">
+            <span class="board-item-name" style="margin-bottom:2px;" title="${escHtml(project.name)}">${escHtml(project.name)}</span>
+            ${badgeHtml}
+          </div>
           <span style="font-size:0.65rem; color:var(--text-muted); line-height:1;">${totalTasks} task(s)</span>
         </div>
       </div>
@@ -661,7 +693,7 @@ function renderSidebar() {
       if (state.activeProjectId === project.id) {
         state.activeProjectId = state.projects[0]?.id || null;
         state.activeBoardId = null;
-        if (state.projects[0] && state.projects[0].type === 'short') {
+        if (state.projects[0] && (state.projects[0].type === 'short' || state.projects[0].type === 'daily')) {
           state.activeBoardId = state.projects[0].boards[0].id;
         }
       }
@@ -786,7 +818,7 @@ function switchProject(id) {
   state.activeProjectId = id;
   const project = state.projects.find(p => p.id === id);
   if (project) {
-    if (project.type === 'short') {
+    if (project.type === 'short' || project.type === 'daily') {
       state.activeBoardId = project.boards[0].id;
     } else {
       state.activeBoardId = null; // show dashboard
@@ -1611,25 +1643,54 @@ importFile.addEventListener('change', async e => {
   try {
     const text = await file.text();
     const imported = JSON.parse(text);
-    if (!Array.isArray(imported.boards)) throw new Error('Invalid format');
-    const ok = await showConfirm('Import Boards', `Merge ${imported.boards.length} board(s) into your current data?`);
-    if (!ok) { importFile.value=''; return; }
-    imported.boards.forEach(b => {
-      b.id = uid();
-      b.columns?.forEach(col => { col.id = uid(); col.cards?.forEach(card => { card.id = uid(); }); });
-      state.projects.push({ id: uid(), name: b.name, type: 'short', boards: [b] });
-    });
-    // Merge custom tags too
+    
+    // First, map custom tags so imported cards can resolve them
+    const tagMap = {};
     (imported.customTags||[]).forEach(tag => {
-      if (!getAllTags().find(t => t.name.toLowerCase() === tag.name.toLowerCase())) {
-        tag.id = uid();
+      const existing = getAllTags().find(t => t.name.toLowerCase() === tag.name.toLowerCase());
+      if (existing) {
+        tagMap[tag.id] = existing.id;
+      } else {
+        const newId = uid();
+        tagMap[tag.id] = newId;
+        tag.id = newId;
         state.customTags.push(tag);
       }
     });
+
+    if (Array.isArray(imported.projects)) {
+      const ok = await showConfirm('Import Projects', `Merge ${imported.projects.length} project(s) into your current data?`, 'Import', 'btn-primary');
+      if (!ok) { importFile.value=''; return; }
+      imported.projects.forEach(p => {
+        p.id = uid();
+        p.boards?.forEach(b => {
+          b.id = uid();
+          b.columns?.forEach(col => { col.id = uid(); col.cards?.forEach(card => { 
+            card.id = uid(); 
+            if (card.labels) card.labels = card.labels.map(l => tagMap[l] || l);
+          }); });
+        });
+        state.projects.push(p);
+      });
+    } else if (Array.isArray(imported.boards)) {
+      const ok = await showConfirm('Import Boards', `Merge ${imported.boards.length} board(s) into your current data?`, 'Import', 'btn-primary');
+      if (!ok) { importFile.value=''; return; }
+      imported.boards.forEach(b => {
+        b.id = uid();
+        b.columns?.forEach(col => { col.id = uid(); col.cards?.forEach(card => { 
+          card.id = uid(); 
+          if (card.labels) card.labels = card.labels.map(l => tagMap[l] || l);
+        }); });
+        state.projects.push({ id: uid(), name: b.name, type: 'short', boards: [b] });
+      });
+    } else {
+      throw new Error('Invalid format');
+    }
+
     save();
     renderAll();
-    showToast(`Imported ${imported.boards.length} board(s)!`, 'success');
-  } catch { showToast('Import failed ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â invalid JSON.', 'error'); }
+    showToast(`Import successful!`, 'success');
+  } catch { showToast('Import failed - invalid JSON.', 'error'); }
   importFile.value = '';
 });
 
@@ -1648,12 +1709,36 @@ window.addEventListener('resize', debounce(() => {
    AI GENERATION
    ============================================================ */
 
-aiBoardBtn.addEventListener('click', () => {
+let currentAIModalMode = 'standard';
+
+function openAIModal(isDaily = false) {
   aiPromptField.value = '';
   if (aiModalApiKey) aiModalApiKey.value = state.aiApiKey || '';
+  
+  const titleEl = aiModalOverlay.querySelector('.input-modal-title');
+  const longTermContainer = document.getElementById('ai-modal-longterm-container');
+  
+  if (isDaily) {
+    currentAIModalMode = 'daily';
+    if (titleEl) titleEl.textContent = "Generate Today's Tasks";
+    if (longTermContainer) longTermContainer.style.display = 'none';
+    aiPromptField.placeholder = "e.g., Wake up at 7am, Gym, College from 9-4, study ML, get groceries...";
+  } else {
+    currentAIModalMode = 'standard';
+    if (titleEl) titleEl.textContent = "Generate Board with AI";
+    if (longTermContainer) longTermContainer.style.display = 'flex';
+    aiPromptField.placeholder = "e.g., Paste your detailed multi-week project brief here...";
+    if (aiLongTermCheckbox) aiLongTermCheckbox.checked = false;
+  }
+
   aiModalOverlay.style.display = 'flex';
   setTimeout(() => aiPromptField.focus(), 50);
-});
+}
+
+if (generateDailyBtn) {
+  generateDailyBtn.addEventListener('click', () => openAIModal(true));
+}
+aiBoardBtn.addEventListener('click', () => openAIModal(false));
 
 aiModalCancel.addEventListener('click', () => {
   aiModalOverlay.style.display = 'none';
@@ -1691,8 +1776,13 @@ aiModalConfirm.addEventListener('click', () => {
   }
 
   aiModalOverlay.style.display = 'none';
-  const isLongTerm = aiLongTermCheckbox ? aiLongTermCheckbox.checked : false;
-  generateBoardWithAI(prompt, isLongTerm);
+  
+  let finalMode = currentAIModalMode;
+  if (finalMode !== 'daily' && aiLongTermCheckbox && aiLongTermCheckbox.checked) {
+    finalMode = 'long';
+  }
+  
+  generateBoardWithAI(prompt, finalMode);
 });
 
 let isAIGenerating = false;
@@ -1961,7 +2051,8 @@ function stopAIAnimation() {
   clearTimeout(aiPhaseTimer);
 }
 
-async function generateBoardWithAI(prompt, isLongTerm, attempt = 1) {
+async function generateBoardWithAI(prompt, mode, attempt = 1) {
+  const isLongTerm = mode === 'long';
   if (attempt === 1) {
     if (isAIGenerating) {
       showToast('AI Generation already in progress...', 'warning');
@@ -1987,13 +2078,28 @@ async function generateBoardWithAI(prompt, isLongTerm, attempt = 1) {
     const modelName = selectedModel.name;
 
     let systemInstruction = "";
-    if (isLongTerm) {
+    if (mode === 'long') {
       systemInstruction = `You are a world-class expert project manager and domain specialist. Given a long-term task spanning weeks or months, you must generate a highly robust, factually accurate, and detailed sequential timeline broken down into weekly boards. Generate all boards fully and completely from start to finish in a single comprehensive output.
 Do NOT provide generic or vague steps. Use actual methodologies, technical tools, specific metrics, and real-world strategies. Include daily recurring tasks where appropriate.
 CRITICAL: You MUST assign at least one relevant tag to EVERY task. Provide a factual and informative description (1-2 sentences) outlining the specific actions required.
 Return ONLY raw JSON without markdown formatting or code blocks.
 Schema:
 { "projectName": "string (Catchy 3-word title)", "boards": [ { "boardName": "string (e.g. 'Week 1: Fundamentals')", "columns": [ { "name": "string (e.g. 'Day 1')", "tasks": [ { "title": "string", "description": "string (1-2 informative sentences)", "tags": [ { "name": "string (REQUIRED)", "color": "#hex" } ] } ] } ] } ] }
+
+Task: ` + prompt;
+    } else if (mode === 'daily') {
+      systemInstruction = `You are a world-class expert personal assistant and project manager. The user will provide their schedule, appointments, available hours, priorities, habits, and errands for TODAY.
+You must generate a highly actionable, intelligent, and realistic temporary Kanban board representing ONLY today's work.
+Do NOT just repeat the user's routine. You must infer actionable work (e.g. if the user says "Need groceries", generate tasks like "Make grocery list", "Buy groceries", "Put groceries away").
+Intelligent Clustering: Group related tasks into logical columns (e.g. Fitness, College, Career, Home). Do not create unnecessary columns.
+🔥 Must Do: Identify the highest priority work and create a dedicated first column EXACTLY named "🔥 Must Do" containing AT MOST 3-5 critical tasks.
+Task Quality: Tasks should be specific, actionable, realistic, and completable. Target 10-20 actionable tasks in total, adapting to how busy the user's schedule is.
+Ordering: Order tasks roughly following the day's timeline, but priority always overrides chronology.
+Tone: Motivating but practical. Do not overwhelm the user.
+CRITICAL: You MUST assign at least one relevant tag to EVERY task. Provide a factual and informative description (1-2 sentences) outlining the specific actions required.
+Return ONLY raw JSON without markdown formatting or code blocks.
+Schema:
+{ "boardName": "Today's Plan", "columns": [ { "name": "string (e.g. '🔥 Must Do', 'College', 'Home')", "tasks": [ { "title": "string", "description": "string", "tags": [ { "name": "string (REQUIRED)", "color": "#hex" } ] } ] } ] }
 
 Task: ` + prompt;
     } else {
@@ -2007,10 +2113,9 @@ Schema:
 Task: ` + prompt;
     }
 
-
     // Prepare initial empty project to stream into
-    const projName = (prompt.split(' ').slice(0, 4).join(' ') + '...').replace(/\n/g, '');
-    const proj = { id: uid(), name: projName, type: isLongTerm ? 'long' : 'short', boards: [] };
+    const projName = mode === 'daily' ? "Today's Plan" : (prompt.split(' ').slice(0, 4).join(' ') + '...').replace(/\n/g, '');
+    const proj = { id: uid(), name: projName, type: mode, createdAt: Date.now(), boards: [] };
     state.projects.push(proj);
     state.activeProjectId = proj.id;
     state.activeBoardId = null;
@@ -2171,7 +2276,7 @@ Task: ` + prompt;
       showToast('Network error, retrying in 60s...', 'error', 4000);
       setTimeout(() => {
          document.getElementById('ai-retry-widget').style.display = 'none';
-         generateBoardWithAI(prompt, isLongTerm, attempt + 1);
+         generateBoardWithAI(prompt, mode, attempt + 1);
       }, 60000);
     } else {
       document.getElementById('ai-retry-widget').style.display = 'none';
@@ -2205,7 +2310,7 @@ async function init() {
   } else if (state.projects.length > 0) {
     if (!getActiveProject()) {
       state.activeProjectId = state.projects[0].id;
-      if (state.projects[0].type === 'short') {
+      if (state.projects[0].type === 'short' || state.projects[0].type === 'daily') {
         state.activeBoardId = state.projects[0].boards[0].id;
       } else {
         state.activeBoardId = null;
@@ -2214,6 +2319,13 @@ async function init() {
   }
 
   renderAll();
+
+  // Auto-prompt for daily board if missing
+  if (!state.projects.some(p => p.type === 'daily')) {
+    setTimeout(() => {
+      openAIModal(true);
+    }, 500);
+  }
 }
 
 init().catch(console.error);

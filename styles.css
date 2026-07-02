@@ -219,6 +219,23 @@ body {
   box-shadow: 0 0 12px rgba(184,126,255,0.4);
 }
 
+.daily-btn {
+  border-top: none;
+  background: linear-gradient(135deg, rgba(207, 15, 71, 0.1), rgba(207, 15, 71, 0.05));
+  border: 1px solid rgba(207, 15, 71, 0.3);
+  color: #CF0F47;
+  margin: 4px 8px 8px;
+  width: auto;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+.daily-btn:hover {
+  background: linear-gradient(135deg, rgba(207, 15, 71, 0.2), rgba(207, 15, 71, 0.15));
+  border-color: #CF0F47;
+  color: var(--text-primary);
+  box-shadow: 0 0 12px rgba(207, 15, 71, 0.4);
+}
+
 .sidebar-footer {
   border-top: 1px solid var(--border-subtle);
   padding: 8px;
