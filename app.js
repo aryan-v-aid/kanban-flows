@@ -143,8 +143,11 @@ async function loadState() {
     if (saved) state = { ...defaultState(), ...saved };
     if (!Array.isArray(state.customTags)) state.customTags = [];
     
-    // Cleanup any corrupted empty projects that got stuck during the bug
-    state.projects = state.projects.filter(p => p.boards && p.boards.length > 0);
+    // Cleanup any corrupted empty short/daily projects that got stuck during the bug
+    state.projects = state.projects.filter(p => {
+      if (p.type !== 'long' && (!p.boards || p.boards.length === 0)) return false;
+      return true;
+    });
 
     // Auto-expire daily projects older than 24 hours
     state.projects = state.projects.filter(p => {
@@ -183,8 +186,16 @@ async function loadState() {
         state.activeProjectId = state.projects[0].id;
       }
       const p = getActiveProject();
-      if (p && !p.boards.find(b => b.id === state.activeBoardId)) {
-        state.activeBoardId = p.boards[0].id;
+      if (p) {
+        if (p.type === 'long') {
+          if (state.activeBoardId !== null && !p.boards.find(b => b.id === state.activeBoardId)) {
+            state.activeBoardId = null;
+          }
+        } else {
+          if (!p.boards.find(b => b.id === state.activeBoardId)) {
+            state.activeBoardId = p.boards[0]?.id || null;
+          }
+        }
       }
     }
     save(); // Save the cleaned/seeded data
@@ -815,11 +826,12 @@ if (emptyAddBoardBtn) emptyAddBoardBtn.addEventListener('click', promptNewProjec
    ============================================================ */
 
 function switchProject(id) {
+  closeTaskDialog();
   state.activeProjectId = id;
   const project = state.projects.find(p => p.id === id);
   if (project) {
     if (project.type === 'short' || project.type === 'daily') {
-      state.activeBoardId = project.boards[0].id;
+      state.activeBoardId = project.boards[0]?.id || null;
     } else {
       state.activeBoardId = null; // show dashboard
     }
@@ -1425,6 +1437,9 @@ function openTaskDialog(cardId) {
   const { card } = found;
   dialogCardId = cardId;
   dialogDraft  = JSON.parse(JSON.stringify(card));
+  if (!dialogDraft.labels) dialogDraft.labels = [];
+  if (!dialogDraft.links)  dialogDraft.links = [];
+  if (!dialogDraft.images) dialogDraft.images = [];
 
   dialogTaskTitle.value = card.title;
   dialogColorBar.style.background = card.color || 'transparent';
