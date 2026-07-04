@@ -1842,7 +1842,7 @@ function syncStreamedData(parsedData, isLongTerm, targetBoardIndex = null) {
     }
 
     (boardData.columns || []).forEach((colData, cIdx) => {
-      let col = board.columns.find(c => c.name === colData.name);
+      let col = board.columns[cIdx];
       if (!col && colData.name) {
         col = createColumn(colData.name, board.columns.length);
         board.columns.push(col);
@@ -1851,13 +1851,22 @@ function syncStreamedData(parsedData, isLongTerm, targetBoardIndex = null) {
            colEl.style.animation = 'popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
            boardArea.appendChild(colEl);
         }
+      } else if (col && colData.name && col.name !== colData.name) {
+        col.name = colData.name;
+        if (board.id === state.activeBoardId) {
+          const colEl = document.querySelector(`.column[data-id="${col.id}"]`);
+          if (colEl) {
+            const titleEl = colEl.querySelector('.column-title');
+            if (titleEl) titleEl.textContent = colData.name;
+          }
+        }
       }
       if (!col) return;
 
-            (colData.tasks || []).forEach(taskData => {
+      (colData.tasks || []).forEach((taskData, tIdx) => {
         if (typeof taskData.title !== 'string' || taskData.title.trim().length === 0) return;
         
-        let card = col.cards.find(c => c.title === taskData.title);
+        let card = col.cards[tIdx];
         
         const updateTags = (targetCard) => {
           let tagsToProcess = taskData.tags;
@@ -1904,6 +1913,10 @@ function syncStreamedData(parsedData, isLongTerm, targetBoardIndex = null) {
           }
         } else {
           let updated = false;
+          if (taskData.title && card.title !== taskData.title) {
+            card.title = taskData.title;
+            updated = true;
+          }
           if (taskData.description && card.description !== taskData.description) {
             card.description = taskData.description;
             updated = true;
@@ -1928,7 +1941,6 @@ function syncStreamedData(parsedData, isLongTerm, targetBoardIndex = null) {
   });
   save();
 }
-
 
 
 let aiTypingTimer, aiPhaseTimer;
@@ -2082,9 +2094,10 @@ async function generateBoardWithAI(prompt, mode, attempt = 1) {
       systemInstruction = `You are a world-class expert project manager and domain specialist. Given a long-term task spanning weeks or months, you must generate a highly robust, factually accurate, and detailed sequential timeline broken down into weekly boards. Generate all boards fully and completely from start to finish in a single comprehensive output.
 Do NOT provide generic or vague steps. Use actual methodologies, technical tools, specific metrics, and real-world strategies. Include daily recurring tasks where appropriate.
 CRITICAL: You MUST assign at least one relevant tag to EVERY task. Provide a factual and informative description (1-2 sentences) outlining the specific actions required.
+CRITICAL TAG COLORING: For tag colors, you MUST select a vibrant neon hex code suitable for dark mode (choose from: #00e5ff, #b87eff, #ff4fcd, #ffb547, #00ffb3, #4f9fff, #ff4f6f, #7c6fff).
 Return ONLY raw JSON without markdown formatting or code blocks.
 Schema:
-{ "projectName": "string (Catchy 3-word title)", "boards": [ { "boardName": "string (e.g. 'Week 1: Fundamentals')", "columns": [ { "name": "string (e.g. 'Day 1')", "tasks": [ { "title": "string", "description": "string (1-2 informative sentences)", "tags": [ { "name": "string (REQUIRED)", "color": "#hex" } ] } ] } ] } ] }
+{ "projectName": "string (Catchy 3-word title)", "boards": [ { "boardName": "string (e.g. 'Week 1: Fundamentals')", "columns": [ { "name": "string (e.g. 'Day 1')", "tasks": [ { "title": "string", "description": "string (1-2 informative sentences)", "tags": [ { "name": "string (REQUIRED)", "color": "string (one of the specified neon hex codes)" } ] } ] } ] } ] }
 
 Task: ` + prompt;
     } else if (mode === 'daily') {
@@ -2097,18 +2110,20 @@ Task Quality: Tasks should be specific, actionable, realistic, and completable. 
 Ordering: Order tasks roughly following the day's timeline, but priority always overrides chronology.
 Tone: Motivating but practical. Do not overwhelm the user.
 CRITICAL: You MUST assign at least one relevant tag to EVERY task. Provide a factual and informative description (1-2 sentences) outlining the specific actions required.
+CRITICAL TAG COLORING: For tag colors, you MUST select a vibrant neon hex code suitable for dark mode (choose from: #00e5ff, #b87eff, #ff4fcd, #ffb547, #00ffb3, #4f9fff, #ff4f6f, #7c6fff).
 Return ONLY raw JSON without markdown formatting or code blocks.
 Schema:
-{ "boardName": "Today's Plan", "columns": [ { "name": "string (e.g. '🔥 Must Do', 'College', 'Home')", "tasks": [ { "title": "string", "description": "string", "tags": [ { "name": "string (REQUIRED)", "color": "#hex" } ] } ] } ] }
+{ "boardName": "Today's Plan", "columns": [ { "name": "string (e.g. '🔥 Must Do', 'College', 'Home')", "tasks": [ { "title": "string", "description": "string", "tags": [ { "name": "string (REQUIRED)", "color": "string (one of the specified neon hex codes)" } ] } ] } ] }
 
 Task: ` + prompt;
     } else {
       systemInstruction = `You are a world-class expert project manager and domain specialist. Given a task, you must generate a highly robust, factually accurate, and detailed Kanban board.
 Do NOT provide generic or vague steps. Use actual methodologies, technical tools, specific metrics, and real-world strategies.
 CRITICAL: You MUST assign at least one relevant tag to EVERY task. Provide a factual and informative description (1-2 sentences) outlining the specific actions required.
+CRITICAL TAG COLORING: For tag colors, you MUST select a vibrant neon hex code suitable for dark mode (choose from: #00e5ff, #b87eff, #ff4fcd, #ffb547, #00ffb3, #4f9fff, #ff4f6f, #7c6fff).
 Return ONLY raw JSON without markdown formatting or code blocks.
 Schema:
-{ "boardName": "string", "columns": [ { "name": "string (e.g. 'To Do', 'In Progress', 'Review')", "tasks": [ { "title": "string", "description": "string (1-2 informative sentences)", "tags": [ { "name": "string (REQUIRED)", "color": "#hex" } ] } ] } ] }
+{ "boardName": "string", "columns": [ { "name": "string (e.g. 'To Do', 'In Progress', 'Review')", "tasks": [ { "title": "string", "description": "string (1-2 informative sentences)", "tags": [ { "name": "string (REQUIRED)", "color": "string (one of the specified neon hex codes)" } ] } ] } ] }
 
 Task: ` + prompt;
     }

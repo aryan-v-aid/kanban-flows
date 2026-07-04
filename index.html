@@ -21,7 +21,18 @@
   <aside id="sidebar" class="sidebar">
     <div class="sidebar-header">
       <div class="logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <defs>
+            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#00e5ff" />
+              <stop offset="100%" stop-color="#ff4fcd" />
+            </linearGradient>
+          </defs>
+          <rect x="2.5" y="2.5" width="8" height="10" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
+          <rect x="13.5" y="2.5" width="8" height="6" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
+          <rect x="13.5" y="11.5" width="8" height="10" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
+          <rect x="2.5" y="15.5" width="8" height="6" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
+        </svg>
         <span class="logo-text">KanbanFlow</span>
       </div>
       <div class="sidebar-header-actions">
@@ -42,7 +53,12 @@
       Generate Today's Tasks
     </button>
     <button id="add-project-btn" class="add-board-btn">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+        <rect x="2.5" y="2.5" width="8" height="10" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
+        <rect x="13.5" y="2.5" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
+        <rect x="13.5" y="11.5" width="8" height="10" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
+        <rect x="2.5" y="15.5" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
+      </svg>
       New Project
     </button>
 
@@ -186,7 +202,12 @@
     <div id="board-area" class="board-area">
       <div id="empty-state" class="empty-state">
         <div class="empty-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.3"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" opacity="0.3">
+            <rect x="2.5" y="2.5" width="8" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="13.5" y="2.5" width="8" height="6" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="13.5" y="11.5" width="8" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="2.5" y="15.5" width="8" height="6" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
         </div>
         <h2 class="empty-title">No project selected</h2>
         <p class="empty-subtitle">Create a new project to get started.</p>
