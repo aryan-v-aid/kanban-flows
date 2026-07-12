@@ -73,6 +73,16 @@ function formatBytes(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
+function isSafeUrl(url) {
+  if (typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'mailto:';
+  } catch {
+    return false;
+  }
+}
+
 function escHtml(str) {
   const d = document.createElement('div');
   d.appendChild(document.createTextNode(str));
@@ -1541,13 +1551,13 @@ function renderDialogColorPicker() {
 /* ---- Links ---- */
 function renderDialogLinks() {
   linksList.innerHTML = '';
-  (dialogDraft.links || []).forEach((link, idx) => {
+  (dialogDraft.links || []).filter(l => isSafeUrl(l.url)).forEach((link, idx) => {
     const item = document.createElement('div');
     item.className = 'link-item';
     item.innerHTML = `
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       <div class="link-item-info">
-        <a class="link-item-title" href="${escHtml(link.url)}" target="_blank" rel="noopener">${escHtml(link.title||link.url)}</a>
+        <a class="link-item-title" href="${escHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escHtml(link.title||link.url)}</a>
         <span class="link-item-url">${escHtml(link.url)}</span>
       </div>
       <button class="link-item-delete" title="Remove"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -1560,6 +1570,10 @@ function renderDialogLinks() {
 addLinkBtn.addEventListener('click', () => {
   const url = linkUrlInput.value.trim();
   if (!url) { showToast('Enter a URL first.', 'warning'); return; }
+  if (!isSafeUrl(url)) {
+    showToast('That link doesn\'t look like a valid http(s) URL.', 'warning');
+    return;
+  }
   if (!dialogDraft.links) dialogDraft.links = [];
   dialogDraft.links.push({ title: linkTitleInput.value.trim() || url, url });
   linkTitleInput.value = '';
@@ -1664,9 +1678,60 @@ exportBtn.addEventListener('click', () => {
   showToast('Exported!', 'success');
 });
 
+const VALID_PROJECT_TYPES = ['short', 'daily', 'long'];
+
+function sanitizeImportedCard(card) {
+  return {
+    id: uid(),
+    title: typeof card?.title === 'string' ? card.title.slice(0, 500) : 'Untitled',
+    description: typeof card?.description === 'string' ? card.description.slice(0, 5000) : '',
+    labels: Array.isArray(card?.labels) ? card.labels : [],
+    assignee: typeof card?.assignee === 'string' ? card.assignee : '',
+    subtasks: Array.isArray(card?.subtasks) ? card.subtasks : [],
+    links: Array.isArray(card?.links)
+      ? card.links.filter(l => isSafeUrl(l?.url)).map(l => ({ title: String(l.title || l.url), url: l.url }))
+      : [],
+    images: Array.isArray(card?.images) ? card.images : [],
+    completed: !!card?.completed
+  };
+}
+
+function sanitizeImportedColumn(col) {
+  return {
+    id: uid(),
+    name: typeof col?.name === 'string' ? col.name.slice(0, 100) : 'Column',
+    color: typeof col?.color === 'string' ? col.color : '#4f9fff',
+    cards: Array.isArray(col?.cards) ? col.cards.map(sanitizeImportedCard) : []
+  };
+}
+
+function sanitizeImportedBoard(board) {
+  return {
+    id: uid(),
+    name: typeof board?.name === 'string' ? board.name.slice(0, 200) : 'Imported Board',
+    columns: Array.isArray(board?.columns) ? board.columns.map(sanitizeImportedColumn) : []
+  };
+}
+
+function sanitizeImportedProject(project) {
+  return {
+    id: uid(),
+    name: typeof project?.name === 'string' ? project.name.slice(0, 200) : 'Imported Project',
+    type: VALID_PROJECT_TYPES.includes(project?.type) ? project.type : 'short',
+    createdAt: Date.now(),
+    boards: Array.isArray(project?.boards) ? project.boards.map(sanitizeImportedBoard) : []
+  };
+}
+
 importFile.addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
+  const MAX_IMPORT_BYTES = 25 * 1024 * 1024; // 25MB
+  if (file.size > MAX_IMPORT_BYTES) {
+    showToast('Import file is too large.', 'error');
+    importFile.value = '';
+    return;
+  }
   try {
     const text = await file.text();
     const imported = JSON.parse(text);
@@ -1689,26 +1754,23 @@ importFile.addEventListener('change', async e => {
       const ok = await showConfirm('Import Projects', `Merge ${imported.projects.length} project(s) into your current data?`, 'Import', 'btn-primary');
       if (!ok) { importFile.value=''; return; }
       imported.projects.forEach(p => {
-        p.id = uid();
-        p.boards?.forEach(b => {
-          b.id = uid();
-          b.columns?.forEach(col => { col.id = uid(); col.cards?.forEach(card => { 
-            card.id = uid(); 
+        const cleanProject = sanitizeImportedProject(p);
+        cleanProject.boards?.forEach(b => {
+          b.columns?.forEach(col => { col.cards?.forEach(card => { 
             if (card.labels) card.labels = card.labels.map(l => tagMap[l] || l);
           }); });
         });
-        state.projects.push(p);
+        state.projects.push(cleanProject);
       });
     } else if (Array.isArray(imported.boards)) {
       const ok = await showConfirm('Import Boards', `Merge ${imported.boards.length} board(s) into your current data?`, 'Import', 'btn-primary');
       if (!ok) { importFile.value=''; return; }
       imported.boards.forEach(b => {
-        b.id = uid();
-        b.columns?.forEach(col => { col.id = uid(); col.cards?.forEach(card => { 
-          card.id = uid(); 
+        const cleanBoard = sanitizeImportedBoard(b);
+        cleanBoard.columns?.forEach(col => { col.cards?.forEach(card => { 
           if (card.labels) card.labels = card.labels.map(l => tagMap[l] || l);
         }); });
-        state.projects.push({ id: uid(), name: b.name, type: 'short', boards: [b] });
+        state.projects.push({ id: uid(), name: cleanBoard.name, type: 'short', boards: [cleanBoard] });
       });
     } else {
       throw new Error('Invalid format');
@@ -2110,7 +2172,9 @@ async function generateBoardWithAI(prompt, mode, attempt = 1) {
   }
   
   try {
-    const modelsResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.aiApiKey}`);
+    const modelsResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models`, {
+      headers: { 'x-goog-api-key': state.aiApiKey }
+    });
     if (!modelsResp.ok) throw new Error('Invalid API Key or network error.');
     const modelsData = await modelsResp.json();
     const validModels = modelsData.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
@@ -2148,11 +2212,18 @@ Task: ` + prompt;
     } else {
       systemInstruction = `You are a world-class expert project manager and domain specialist. Given a task, you must generate a highly robust, factually accurate, and detailed Kanban board.
 Do NOT provide generic or vague steps. Use actual methodologies, technical tools, specific metrics, and real-world strategies.
+
+COLUMN STRUCTURE — READ CAREFULLY:
+1. First, determine whether the task is MULTI-DISCIPLINARY, meaning it spans two or more clearly distinct subject areas, domains, or workstreams (e.g. "venue, catering, guest list, legal" or "backend, frontend, marketing, legal" or "design, development, QA, deployment").
+2. If the task IS multi-disciplinary: create ONE column PER subtopic/domain, named after that subtopic (e.g. "Venue", "Catering", "Guest List", "Legal"). Distribute each task into the column of the subtopic it actually belongs to. Do NOT also add generic status columns like "To Do"/"In Progress"/"Done" in this case — the subtopic columns ARE the board structure. Within each subtopic column, order tasks in the rough sequence they should be tackled.
+3. If the task is NOT multi-disciplinary (a single focused task or project with one natural workflow), use a standard sequential workflow instead, e.g. "To Do", "In Progress", "Review", "Done" (adapt names to fit the domain, e.g. "Backlog", "Building", "Testing", "Shipped").
+4. Never create more than 6 columns. If there are more than 6 natural subtopics, merge the smallest/most related ones together rather than exceeding 6.
+
 CRITICAL: You MUST assign at least one relevant tag to EVERY task. Provide a factual and informative description (1-2 sentences) outlining the specific actions required.
 CRITICAL TAG COLORING: For tag colors, you MUST select a vibrant neon hex code suitable for dark mode (choose from: #00e5ff, #b87eff, #ff4fcd, #ffb547, #00ffb3, #4f9fff, #ff4f6f, #7c6fff).
 Return ONLY raw JSON without markdown formatting or code blocks.
 Schema:
-{ "boardName": "string", "columns": [ { "name": "string (e.g. 'To Do', 'In Progress', 'Review')", "tasks": [ { "title": "string", "description": "string (1-2 informative sentences)", "tags": [ { "name": "string (REQUIRED)", "color": "string (one of the specified neon hex codes)" } ] } ] } ] }
+{ "boardName": "string", "columns": [ { "name": "string (either a subtopic name like 'Catering', or a workflow stage like 'To Do' — see COLUMN STRUCTURE rules above)", "tasks": [ { "title": "string", "description": "string (1-2 informative sentences)", "tags": [ { "name": "string (REQUIRED)", "color": "string (one of the specified neon hex codes)" } ] } ] } ] }
 
 Task: ` + prompt;
     }
@@ -2185,9 +2256,12 @@ Task: ` + prompt;
 
     aiAbortController = new AbortController();
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:streamGenerateContent?alt=sse&key=${state.aiApiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:streamGenerateContent?alt=sse`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-goog-api-key': state.aiApiKey
+      },
       signal: aiAbortController.signal,
       body: JSON.stringify({
         contents: [{ parts: [{ text: systemInstruction }] }]

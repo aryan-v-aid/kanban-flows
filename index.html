@@ -126,6 +126,9 @@
           </select>
           <input type="password" id="ai-api-key" class="field-input" placeholder="Gemini API Key..." />
           <input type="password" id="claude-api-key" class="field-input" placeholder="Claude API Key..." style="display:none;" />
+          <p class="api-key-disclaimer" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px;">
+            Your API key is stored only in this browser (IndexedDB) and is sent directly to Google's API. It is never sent to or stored on any server operated by this app.
+          </p>
           <button class="btn-primary btn-sm" id="save-ai-key-btn" style="align-self:flex-start;">Save Settings</button>
         </div>
       </div>
@@ -355,6 +358,9 @@
         <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--neon-cyan); text-decoration:none; text-transform:none; letter-spacing:normal;">Get an API Key</a>
       </label>
       <input type="password" id="ai-modal-api-key" class="field-input" placeholder="Paste your Gemini API key here..." />
+      <p class="api-key-disclaimer" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px; margin-bottom: 0;">
+        Your API key is stored only in this browser (IndexedDB) and is sent directly to Google's API. It is never sent to or stored on any server operated by this app.
+      </p>
     </div>
 
     <div class="input-modal-actions" style="margin-top:15px">
