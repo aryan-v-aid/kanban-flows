@@ -143,6 +143,15 @@ async function loadState() {
     if (saved) state = { ...defaultState(), ...saved };
     if (!Array.isArray(state.customTags)) state.customTags = [];
     
+    // Migration: heal any project saved with an invalid type (e.g. 'standard') from the
+    // bug where AI-generated boards could get the wrong type and become permanently
+    // stuck/unreachable. Anything not a recognized type is treated as a normal
+    // standalone board ('short').
+    const validTypes = ['short', 'daily', 'long'];
+    state.projects.forEach(p => {
+      if (!validTypes.includes(p.type)) p.type = 'short';
+    });
+    
     // Cleanup any corrupted empty short/daily projects that got stuck during the bug
     state.projects = state.projects.filter(p => {
       if (p.type !== 'long' && (!p.boards || p.boards.length === 0)) return false;
@@ -1805,6 +1814,7 @@ aiModalConfirm.addEventListener('click', () => {
 
 let isAIGenerating = false;
 let aiAbortController = null;
+let activeGenProjectId = null;
 
 const aiCancelGenBtn = document.getElementById('ai-cancel-generation-btn');
 if (aiCancelGenBtn) {
@@ -2089,6 +2099,7 @@ async function generateBoardWithAI(prompt, mode, attempt = 1) {
       return;
     }
     isAIGenerating = true;
+    activeGenProjectId = null;
     window.liveAIWords = [];
     window.usedAIWords = new Set();
     aiLoadingOverlay.style.display = 'flex';
@@ -2147,9 +2158,17 @@ Task: ` + prompt;
     }
 
     // Prepare initial empty project to stream into
-    const projName = mode === 'daily' ? "Today's Plan" : (prompt.split(' ').slice(0, 4).join(' ') + '...').replace(/\n/g, '');
-    const proj = { id: uid(), name: projName, type: mode, createdAt: Date.now(), boards: [] };
-    state.projects.push(proj);
+    let proj = state.projects.find(p => p.id === activeGenProjectId);
+    if (!proj) {
+      const validProjectTypes = { daily: 'daily', long: 'long' };
+      const projType = validProjectTypes[mode] || 'short';
+      const projName = mode === 'daily'
+        ? "Today's Plan"
+        : (prompt.split(' ').slice(0, 4).join(' ') + '...').replace(/\n/g, '');
+      proj = { id: uid(), name: projName, type: projType, createdAt: Date.now(), boards: [] };
+      state.projects.push(proj);
+      activeGenProjectId = proj.id;
+    }
     state.activeProjectId = proj.id;
     state.activeBoardId = null;
     save();
