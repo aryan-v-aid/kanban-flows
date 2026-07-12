@@ -227,7 +227,7 @@ function getActiveProject() {
 }
 function getActiveBoard() {
   const p = getActiveProject();
-  if (!p) return null;
+  if (!p || !p.boards) return null;
   return p.boards.find(b => b.id === state.activeBoardId) || null;
 }
 
@@ -261,7 +261,9 @@ function createCard(title) {
 }
 
 function findCard(board, cardId) {
+  if (!board || !board.columns) return null;
   for (const col of board.columns) {
+    if (!col.cards) col.cards = [];
     const idx = col.cards.findIndex(c => c.id === cardId);
     if (idx !== -1) return { col, card: col.cards[idx], idx };
   }
@@ -570,8 +572,8 @@ function renderTagManagerList() {
         // Remove from customTags
         state.customTags = state.customTags.filter(t => t.id !== tag.id);
         // Remove from all cards
-        state.projects.forEach(p => p.boards.forEach(b => b.columns.forEach(col => col.cards.forEach(card => {
-          card.labels = card.labels.filter(l => l !== tag.id);
+        state.projects.forEach(p => p.boards?.forEach(b => b.columns?.forEach(col => col.cards?.forEach(card => {
+          if (card.labels) card.labels = card.labels.filter(l => l !== tag.id);
         }))));
         save();
         renderTagManagerList();
@@ -627,7 +629,7 @@ function renderStorageInfo() {
     <strong>Data size:</strong> ~${formatBytes(bytes)}<br/>
     <strong>Projects:</strong> ${state.projects.length}<br/>
     <strong>Custom tags:</strong> ${state.customTags.length}<br/>
-    <strong>Total cards:</strong> ${state.projects.reduce((s, p) => s + p.boards.reduce((bs, b) => bs + b.columns.reduce((ss, c) => ss + c.cards.length, 0), 0), 0)}
+    <strong>Total cards:</strong> ${state.projects.reduce((s, p) => s + (p.boards || []).reduce((bs, b) => bs + (b.columns || []).reduce((ss, c) => ss + (c.cards || []).length, 0), 0), 0)}
   `;
 }
 
@@ -655,7 +657,7 @@ function renderSidebar() {
     item.className = 'board-item' + (isActive ? ' active' : '');
     item.dataset.id = project.id;
     let totalTasks = 0;
-    project.boards.forEach(b => b.columns.forEach(c => totalTasks += c.cards.length));
+    project.boards?.forEach(b => b.columns?.forEach(c => totalTasks += (c.cards || []).length));
     
     let badgeHtml = '';
     if (project.type === 'daily' && project.createdAt) {
@@ -705,7 +707,7 @@ function renderSidebar() {
         state.activeProjectId = state.projects[0]?.id || null;
         state.activeBoardId = null;
         if (state.projects[0] && (state.projects[0].type === 'short' || state.projects[0].type === 'daily')) {
-          state.activeBoardId = state.projects[0].boards[0].id;
+          state.activeBoardId = state.projects[0].boards?.[0]?.id || null;
         }
       }
       save();
@@ -724,9 +726,9 @@ function renderDashboard() {
   project.boards.forEach(board => {
     let totalTasks = 0;
     let completedTasks = 0;
-    board.columns.forEach(col => {
-      totalTasks += col.cards.length;
-      completedTasks += col.cards.filter(c => c.completed).length;
+    board.columns?.forEach(col => {
+      totalTasks += (col.cards || []).length;
+      completedTasks += (col.cards || []).filter(c => c.completed).length;
     });
     const percent = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
@@ -831,7 +833,7 @@ function switchProject(id) {
   const project = state.projects.find(p => p.id === id);
   if (project) {
     if (project.type === 'short' || project.type === 'daily') {
-      state.activeBoardId = project.boards[0]?.id || null;
+      state.activeBoardId = project.boards?.[0]?.id || null;
     } else {
       state.activeBoardId = null; // show dashboard
     }
@@ -910,8 +912,9 @@ function updateBoardTitle() {
     } else {
       backToDashboardBtn.style.display = 'none';
     }
-  } else if (project.type === 'long') {
-    boardTitleEl.textContent = project.name.toUpperCase() + ' (DASHBOARD)';
+  } else {
+    const suffix = project.type === 'long' ? ' (DASHBOARD)' : '';
+    boardTitleEl.textContent = project.name.toUpperCase() + suffix;
     renameBoardBtn.style.display = 'none';
     addColumnBtn.style.display = 'none';
     labelFilterWrap.style.display = 'none';
@@ -1069,10 +1072,10 @@ function renderProjectProgress() {
   if (project && project.type === 'long') {
     let totalTasks = 0;
     let completedTasks = 0;
-    project.boards.forEach(board => {
-      board.columns.forEach(col => {
-        totalTasks += col.cards.length;
-        completedTasks += col.cards.filter(c => c.completed).length;
+    project.boards?.forEach(board => {
+      board.columns?.forEach(col => {
+        totalTasks += (col.cards || []).length;
+        completedTasks += (col.cards || []).filter(c => c.completed).length;
       });
     });
     const percent = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
@@ -2341,7 +2344,7 @@ async function init() {
     if (!getActiveProject()) {
       state.activeProjectId = state.projects[0].id;
       if (state.projects[0].type === 'short' || state.projects[0].type === 'daily') {
-        state.activeBoardId = state.projects[0].boards[0].id;
+        state.activeBoardId = state.projects[0].boards?.[0]?.id || null;
       } else {
         state.activeBoardId = null;
       }
