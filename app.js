@@ -17,6 +17,7 @@ const DB_VERSION = 1;
 const STORE_NAME = 'appState';
 const STATE_KEY  = 'state';
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const VALID_PROJECT_TYPES = ['short', 'daily', 'long'];
 
 const NEON_COLORS = [
   { name: 'cyan',   value: '#00e5ff' },
@@ -157,9 +158,8 @@ async function loadState() {
     // bug where AI-generated boards could get the wrong type and become permanently
     // stuck/unreachable. Anything not a recognized type is treated as a normal
     // standalone board ('short').
-    const validTypes = ['short', 'daily', 'long'];
     state.projects.forEach(p => {
-      if (!validTypes.includes(p.type)) p.type = 'short';
+      if (!VALID_PROJECT_TYPES.includes(p.type)) p.type = 'short';
     });
     
     // Cleanup any corrupted empty short/daily projects that got stuck during the bug
@@ -347,6 +347,7 @@ const inputModalSubtitle  = $('input-modal-subtitle');
 const inputModalField     = $('input-modal-field');
 const inputModalCancel    = $('input-modal-cancel');
 const inputModalConfirm   = $('input-modal-confirm');
+const inputModalAi        = $('input-modal-ai');
 
 // Task dialog
 const taskDialogOverlay   = $('task-dialog-overlay');
@@ -443,7 +444,7 @@ let inputModalResolve = null;
  * @param {string} [opts.iconType]  - 'board' | 'column'
  * @returns {Promise<string|null>}  - trimmed value or null if cancelled
  */
-function showInputModal({ title, subtitle, placeholder = '', defaultValue = '', confirmLabel = 'Create', iconType = 'board' }) {
+function showInputModal({ title, subtitle, placeholder = '', defaultValue = '', confirmLabel = 'Create', iconType = 'board', showAIBtn = false }) {
   // Build icon
   const iconSvg = iconType === 'column'
     ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="3" width="13" height="13" rx="2"/><path d="M5 7H2a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3"/></svg>`
@@ -461,6 +462,7 @@ function showInputModal({ title, subtitle, placeholder = '', defaultValue = '', 
   inputModalField.placeholder = placeholder;
   inputModalField.value = defaultValue;
   inputModalConfirm.textContent = confirmLabel;
+  inputModalAi.style.display = showAIBtn ? 'inline-flex' : 'none';
   inputModalOverlay.style.display = 'flex';
 
   setTimeout(() => { inputModalField.focus(); inputModalField.select(); }, 50);
@@ -480,6 +482,11 @@ inputModalConfirm.addEventListener('click', () => {
   const v = inputModalField.value.trim();
   if (!v) { inputModalField.focus(); inputModalField.classList.add('shake'); setTimeout(() => inputModalField.classList.remove('shake'), 400); return; }
   closeInputModal(v);
+});
+inputModalAi.addEventListener('click', () => {
+  const v = inputModalField.value.trim();
+  if (!v) { inputModalField.focus(); inputModalField.classList.add('shake'); setTimeout(() => inputModalField.classList.remove('shake'), 400); return; }
+  closeInputModal({ action: 'ai', value: v });
 });
 inputModalField.addEventListener('keydown', e => {
   if (e.key === 'Enter') inputModalConfirm.click();
@@ -892,6 +899,13 @@ boardTitleEl.addEventListener('blur', () => {
   if (!board || boardTitleEl.contentEditable !== 'true') return;
   const newName = boardTitleEl.textContent.trim() || board.name;
   board.name = newName;
+  
+  // Sync to project if it's a standalone board
+  const proj = state.projects.find(p => p.id === state.activeProjectId);
+  if (proj && (proj.type === 'short' || proj.type === 'daily')) {
+    proj.name = newName;
+  }
+  
   boardTitleEl.contentEditable = 'false';
   boardTitleEl.textContent = newName.toUpperCase();
   save();
@@ -948,14 +962,31 @@ function updateBoardTitle() {
 addColumnBtn.addEventListener('click', async () => {
   const board = getActiveBoard();
   if (!board) return;
-  const name = await showInputModal({
+  const result = await showInputModal({
     title: 'New Column',
     subtitle: 'Add a column to organise your cards.',
     placeholder: 'e.g. In Review',
     confirmLabel: 'Add Column',
     iconType: 'column',
+    showAIBtn: true
   });
+  if (!result) return;
+  
+  let name, isAi = false;
+  if (typeof result === 'object' && result !== null && result.action === 'ai') {
+    name = result.value;
+    isAi = true;
+  } else {
+    name = result;
+  }
+  name = name.trim();
   if (!name) return;
+
+  if (isAi) {
+    generateSingleColumnWithAI(name);
+    return;
+  }
+
   const col = createColumn(name, board.columns.length);
   board.columns.push(col);
   save();
@@ -1678,7 +1709,7 @@ exportBtn.addEventListener('click', () => {
   showToast('Exported!', 'success');
 });
 
-const VALID_PROJECT_TYPES = ['short', 'daily', 'long'];
+
 
 function sanitizeImportedCard(card) {
   return {
@@ -1691,7 +1722,9 @@ function sanitizeImportedCard(card) {
     links: Array.isArray(card?.links)
       ? card.links.filter(l => isSafeUrl(l?.url)).map(l => ({ title: String(l.title || l.url), url: l.url }))
       : [],
-    images: Array.isArray(card?.images) ? card.images : [],
+    images: Array.isArray(card?.images)
+      ? card.images.filter(img => typeof img === 'string' && (img.startsWith('data:image/') || isSafeUrl(img)))
+      : [],
     completed: !!card?.completed
   };
 }
@@ -2153,6 +2186,119 @@ function stopAIAnimation() {
   clearTimeout(aiPhaseTimer);
 }
 
+async function generateSingleColumnWithAI(prompt) {
+  if (isAIGenerating) {
+    showToast('AI Generation already in progress...', 'warning');
+    return;
+  }
+  const board = getActiveBoard();
+  if (!board) return;
+
+  isAIGenerating = true;
+  window.liveAIWords = [];
+  window.usedAIWords = new Set();
+  aiLoadingOverlay.style.display = 'flex';
+  aiLoadingOverlay.style.backgroundColor = 'rgba(10, 14, 23, 0.6)';
+  const overlayModal = aiLoadingOverlay.firstElementChild;
+  if (overlayModal) {
+    overlayModal.style.transform = 'scale(0.9) translateY(-25vh)';
+    overlayModal.style.transition = 'all 0.4s ease';
+    overlayModal.style.boxShadow = '0 0 40px rgba(0, 229, 255, 0.2)';
+  }
+  startAIAnimation();
+
+  try {
+    const modelsResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models`, {
+      headers: { 'x-goog-api-key': state.aiApiKey }
+    });
+    if (!modelsResp.ok) throw new Error('Invalid API Key or network error.');
+    const modelsData = await modelsResp.json();
+    const validModels = modelsData.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
+    if (validModels.length === 0) throw new Error('No supported models found.');
+    let selectedModel = validModels.find(m => m.name.includes('flash')) || validModels.find(m => m.name.includes('pro')) || validModels[0];
+    const modelName = selectedModel.name;
+
+    const systemInstruction = `You are a world-class expert project manager and domain specialist. Given a task, you must generate exactly ONE highly robust, factually accurate, and detailed Kanban column with its relevant tasks.
+CRITICAL LIMIT: You MUST generate exactly 5 tasks for this column. Do NOT generate more or less than 5 tasks.
+Do NOT provide generic or vague steps. Use actual methodologies, technical tools, specific metrics, and real-world strategies.
+CRITICAL: You MUST assign at least one relevant tag to EVERY task. Provide a factual and informative description (1-2 sentences) outlining the specific actions required.
+CRITICAL TAG COLORING: For tag colors, you MUST select a vibrant neon hex code suitable for dark mode (choose from: #00e5ff, #b87eff, #ff4fcd, #ffb547, #00ffb3, #4f9fff, #ff4f6f, #7c6fff).
+Return ONLY raw JSON without markdown formatting or code blocks.
+Schema:
+{ "name": "string (The column name, e.g. 'QA Testing')", "tasks": [ { "title": "string", "description": "string (1-2 informative sentences)", "tags": [ { "name": "string (REQUIRED)", "color": "string (one of the specified neon hex codes)" } ] } ] }`;
+
+    aiAbortController = new AbortController();
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-goog-api-key': state.aiApiKey
+      },
+      signal: aiAbortController.signal,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        generationConfig: { temperature: 0.7 }
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(()=>({}));
+      throw new Error(errData?.error?.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textOutput) throw new Error('Empty response from AI.');
+
+    const cleanJson = textOutput.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const colData = JSON.parse(cleanJson);
+
+    if (!colData.name || !Array.isArray(colData.tasks)) throw new Error('Invalid schema returned by AI.');
+
+    const newCol = createColumn(colData.name, board.columns.length);
+    const tasksToAdd = colData.tasks.slice(0, 5);
+    tasksToAdd.forEach(t => {
+      newCol.cards.push({
+        id: uid(),
+        title: String(t.title || 'Untitled').slice(0, 500),
+        description: String(t.description || '').slice(0, 5000),
+        labels: Array.isArray(t.tags) ? t.tags.map(tag => {
+          let existing = getAllTags().find(ext => ext.name.toLowerCase() === tag.name.toLowerCase());
+          if (!existing) {
+             existing = { id: uid(), name: tag.name, color: tag.color || '#4f9fff' };
+             state.customTags.push(existing);
+          }
+          return existing.id;
+        }) : [],
+        assignee: '', subtasks: [], links: [], images: [], completed: false
+      });
+    });
+
+    board.columns.push(newCol);
+    save();
+    renderBoard();
+    showToast(`Column "${newCol.name}" generated successfully.`, 'success');
+
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      showToast('AI Generation cancelled.', 'info');
+    } else {
+      console.error(err);
+      showToast(err.message, 'error');
+    }
+  } finally {
+    isAIGenerating = false;
+    stopAIAnimation();
+    aiLoadingOverlay.style.display = 'none';
+    if (overlayModal) {
+      overlayModal.style.transform = '';
+      overlayModal.style.boxShadow = '';
+    }
+  }
+}
+
 async function generateBoardWithAI(prompt, mode, attempt = 1) {
   const isLongTerm = mode === 'long';
   if (attempt === 1) {
@@ -2231,8 +2377,7 @@ Task: ` + prompt;
     // Prepare initial empty project to stream into
     let proj = state.projects.find(p => p.id === activeGenProjectId);
     if (!proj) {
-      const validProjectTypes = { daily: 'daily', long: 'long' };
-      const projType = validProjectTypes[mode] || 'short';
+      const projType = VALID_PROJECT_TYPES.includes(mode) ? mode : 'short';
       const projName = mode === 'daily'
         ? "Today's Plan"
         : (prompt.split(' ').slice(0, 4).join(' ') + '...').replace(/\n/g, '');
@@ -2389,15 +2534,16 @@ Task: ` + prompt;
     
     // Stop animation explicitly so we can retry properly if needed
     stopAIAnimation();
-    isAIGenerating = false;
     
     // If it's a bad request, do not retry, just fail and tell the user!
     if (err.message.includes('HTTP 400')) {
+      isAIGenerating = false;
       showToast('API Error: Bad Request. Check your prompt or API key.', 'error', 8000);
       return;
     }
 
     if (attempt < 10) {
+      // Keep isAIGenerating = true during retry window to block concurrent generation
       document.getElementById('ai-retry-widget').style.display = 'flex';
       showToast('Network error, retrying in 60s...', 'error', 4000);
       setTimeout(() => {
@@ -2405,6 +2551,7 @@ Task: ` + prompt;
          generateBoardWithAI(prompt, mode, attempt + 1);
       }, 60000);
     } else {
+      isAIGenerating = false;
       document.getElementById('ai-retry-widget').style.display = 'none';
       showToast('Failed to connect after 10 minutes.', 'error', 6000);
     }
