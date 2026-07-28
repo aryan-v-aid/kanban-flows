@@ -1,18 +1,18 @@
-﻿window.DEFAULT_PROJECT_DATA = {
+window.DEFAULT_PROJECT_DATA = {
   "projects": [
     {
       "id": "ms3vb6wy7njww",
-      "name": "ðŸš€ Welcome to KanbanFlow",
+      "name": "🚀 Welcome to KanbanFlow",
       "type": "short",
       "createdAt": 1785195504322,
       "boards": [
         {
           "id": "ms3vbfg0bd2ga",
-          "name": "ðŸš€ Welcome to KanbanFlow",
+          "name": "🚀 Welcome to KanbanFlow",
           "columns": [
             {
               "id": "ms3vbfg1ymq1r",
-              "name": "ðŸ“¥ To Do",
+              "name": "📥 To Do",
               "color": "#00e5ff",
               "cards": [
                 {
@@ -108,7 +108,7 @@
             },
             {
               "id": "ms3vbhe2rru5i",
-              "name": "ðŸš§ In Progress",
+              "name": "🚧 In Progress",
               "color": "#b87eff",
               "cards": [
                 {
@@ -160,12 +160,12 @@
             },
             {
               "id": "ms3vbidk7d9mg",
-              "name": "âœ… Done",
+              "name": "✅ Done",
               "color": "#00ffb3",
               "cards": [
                 {
                   "id": "ms3vbidkqxgs4",
-                  "title": "ðŸŽ‰ Opened KanbanFlow",
+                  "title": "🎉 Opened KanbanFlow",
                   "description": "You've successfully launched KanbanFlow and are now ready to embark on your productivity journey with powerful organization tools!",
                   "labels": [
                     "ms3v8a038rwwb",
@@ -180,7 +180,7 @@
                 },
                 {
                   "id": "ms3vbiuupl4q7",
-                  "title": "ðŸš€ Ready to start building",
+                  "title": "🚀 Ready to start building",
                   "description": "Your workspace is prepared, and the foundation is set for you to start organizing your tasks effectively and making progress on your goals.",
                   "labels": [
                     "ms3vbizbkh1me",
@@ -196,12 +196,12 @@
             },
             {
               "id": "ms3vbj3yzmlyc",
-              "name": "ðŸ’¡ Tips",
+              "name": "💡 Tips",
               "color": "#ffb547",
               "cards": [
                 {
                   "id": "ms3vbj3y71alc",
-                  "title": "ðŸ’¡ Double-click any task to instantly mark it as complete.",
+                  "title": "💡 Double-click any task to instantly mark it as complete.",
                   "description": "This quick shortcut allows for rapid task completion, streamlining your workflow and keeping your board updated efficiently with minimal clicks.",
                   "labels": [
                     "ms3v8a038rwwb",
@@ -216,7 +216,7 @@
                 },
                 {
                   "id": "ms3vbjel27kmc",
-                  "title": "ðŸ¤– Use AI whenever you're not sure how to organize a project.",
+                  "title": "🤖 Use AI whenever you're not sure how to organize a project.",
                   "description": "KanbanFlow's AI is designed to assist you with structuring your work, offering smart suggestions for tasks and optimized board layouts to get you started.",
                   "labels": [
                     "ms3v8a038rwwb",
@@ -231,7 +231,7 @@
                 },
                 {
                   "id": "ms3vbju4kevd0",
-                  "title": "ðŸ“Œ Keep Today's Tasks focused on what you're doing now.",
+                  "title": "📌 Keep Today's Tasks focused on what you're doing now.",
                   "description": "Prioritizing your active tasks helps maintain focus, reduces cognitive overload, and ensures you're tackling what matters most for immediate impact.",
                   "labels": [
                     "ms3v8a038rwwb",
@@ -246,7 +246,7 @@
                 },
                 {
                   "id": "ms3vbk3xrod49",
-                  "title": "ðŸ—‘ï¸ Delete this board once you've learned the basics.",
+                  "title": "🗑️ Delete this board once you've learned the basics.",
                   "description": "Feel free to archive or delete this onboarding board once you're comfortable with KanbanFlow to keep your workspace clean and organized for your real projects.",
                   "labels": [
                     "ms3v8a038rwwb",
@@ -659,7 +659,7 @@
             {
               "id": "mq6xhrzhocmmp",
               "title": "Set up CI/CD pipeline",
-              "description": "GitHub Actions Ã¢â€ â€™ build, test, deploy to staging.",
+              "description": "GitHub Actions â†’ build, test, deploy to staging.",
               "labels": [
                 "infra"
               ],
@@ -3522,7 +3522,7 @@
             {
               "id": "mq72xa60v38c9",
               "title": "Central Limit Theorem & Sampling Distributions",
-              "description": "Deep dive into the Central Limit Theorem (CLT) Ã¢â‚¬â€œ its statement, conditions, and profound implications for statistical inference. Understand sampling distributions of sample means and proportions. Implement simulations in Python to demonstrate CLT. Allocate 2 hours.",
+              "description": "Deep dive into the Central Limit Theorem (CLT) â€“ its statement, conditions, and profound implications for statistical inference. Understand sampling distributions of sample means and proportions. Implement simulations in Python to demonstrate CLT. Allocate 2 hours.",
               "labels": [
                 "mq72xa60s5pbs",
                 "mq6z2uyjqt615"
@@ -17073,7 +17073,7 @@
             {
               "id": "mqtqso5vhj1g0",
               "title": "Consolidation: Python & Pandas Advanced Practice",
-              "description": "Dedicate time to solving advanced Python and Pandas challenges on platforms like Kaggle notebooks or specific data science problem sets. Focus on integrating all learned conceptsÃ¢â‚¬â€data cleaning, transformation, and analysisÃ¢â‚¬â€into complex workflows. This reinforces your foundational data manipulation skills and ensures proficiency. Aim for efficiency and readability in your solutions.",
+              "description": "Dedicate time to solving advanced Python and Pandas challenges on platforms like Kaggle notebooks or specific data science problem sets. Focus on integrating all learned conceptsâ€”data cleaning, transformation, and analysisâ€”into complex workflows. This reinforces your foundational data manipulation skills and ensures proficiency. Aim for efficiency and readability in your solutions.",
               "labels": [],
               "color": null,
               "links": [],
