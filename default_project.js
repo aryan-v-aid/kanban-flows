@@ -659,7 +659,7 @@ window.DEFAULT_PROJECT_DATA = {
             {
               "id": "mq6xhrzhocmmp",
               "title": "Set up CI/CD pipeline",
-              "description": "GitHub Actions â†’ build, test, deploy to staging.",
+              "description": "GitHub Actions → build, test, deploy to staging.",
               "labels": [
                 "infra"
               ],
@@ -3522,7 +3522,7 @@ window.DEFAULT_PROJECT_DATA = {
             {
               "id": "mq72xa60v38c9",
               "title": "Central Limit Theorem & Sampling Distributions",
-              "description": "Deep dive into the Central Limit Theorem (CLT) â€“ its statement, conditions, and profound implications for statistical inference. Understand sampling distributions of sample means and proportions. Implement simulations in Python to demonstrate CLT. Allocate 2 hours.",
+              "description": "Deep dive into the Central Limit Theorem (CLT) – its statement, conditions, and profound implications for statistical inference. Understand sampling distributions of sample means and proportions. Implement simulations in Python to demonstrate CLT. Allocate 2 hours.",
               "labels": [
                 "mq72xa60s5pbs",
                 "mq6z2uyjqt615"
@@ -17073,7 +17073,7 @@ window.DEFAULT_PROJECT_DATA = {
             {
               "id": "mqtqso5vhj1g0",
               "title": "Consolidation: Python & Pandas Advanced Practice",
-              "description": "Dedicate time to solving advanced Python and Pandas challenges on platforms like Kaggle notebooks or specific data science problem sets. Focus on integrating all learned conceptsâ€”data cleaning, transformation, and analysisâ€”into complex workflows. This reinforces your foundational data manipulation skills and ensures proficiency. Aim for efficiency and readability in your solutions.",
+              "description": "Dedicate time to solving advanced Python and Pandas challenges on platforms like Kaggle notebooks or specific data science problem sets. Focus on integrating all learned concepts—data cleaning, transformation, and analysis—into complex workflows. This reinforces your foundational data manipulation skills and ensures proficiency. Aim for efficiency and readability in your solutions.",
               "labels": [],
               "color": null,
               "links": [],

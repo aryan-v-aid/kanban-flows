@@ -718,7 +718,7 @@ function renderSidebar() {
     item.addEventListener('click', e => { if (!e.target.closest('.board-action-btn')) switchProject(project.id); });
     item.querySelector('.board-action-btn.rename').addEventListener('click', async e => {
       e.stopPropagation();
-      const newName = await showInputModal({ title: 'Rename Project', placeholder: 'Project nameâ€¦', defaultValue: project.name, confirmLabel: 'Rename', iconType: 'board' });
+      const newName = await showInputModal({ title: 'Rename Project', placeholder: 'Project name…', defaultValue: project.name, confirmLabel: 'Rename', iconType: 'board' });
       if (!newName) return;
       project.name = newName;
       save();
