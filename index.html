@@ -1,427 +1,780 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KanbanFlow  Local Project Board</title>
-  <meta name="description" content="A local-first kanban board with drag-and-drop, multiple boards, custom tags, links, and image attachments." />
-  <link rel="icon" href="favicon.ico" type="image/x-icon" />
-  <link rel="apple-touch-icon" href="logo-512.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KanbanFlow — Local-first, AI-powered Kanban for anything</title>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  if (localStorage.getItem('kanban_has_visited') === 'true' && !params.has('landing')) {
+    window.location.replace('board.html');
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#04070f;
+    --bg-2:#050916;
+    --surface:#070b1a;
+    --surface-2:#0a1224;
+    --border:rgba(255,255,255,0.08);
+    --border-soft:rgba(255,255,255,0.06);
+    --text:#e8f0ff;
+    --text-dim:#7a90b8;
+    --text-faint:#3e5080;
+
+    --cyan:#00e5ff;
+    --purple:#b87eff;
+    --green:#00ffb3;
+    --amber:#ffb547;
+    --pink:#ff4fcd;
+    --blue:#4f9fff;
+
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --display:'Space Grotesk', sans-serif;
+    --body:'Inter', sans-serif;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--body);
+    line-height:1.5;
+    overflow-x:hidden;
+  }
+
+  .scene{
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .glow{
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 60% 50% at 30% 25%, rgba(255,47,176,0.06), transparent 60%),
+      radial-gradient(ellipse 55% 45% at 75% 70%, rgba(33,230,255,0.05), transparent 60%),
+      radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, var(--bg) 96%);
+  }
+  canvas{
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+  @media (prefers-reduced-motion: reduce){
+    canvas{ display: none; }
+  }
+
+  .wrap{max-width:1240px;margin:0 auto;padding:0 32px;position:relative;z-index:1;}
+
+  a{color:inherit;text-decoration:none;}
+
+  ::selection{background:var(--cyan);color:#04141a;}
+
+  /* ---------- NAV ---------- */
+  nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(7,10,18,.82);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border-soft);
+  }
+  .nav-inner{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 32px;max-width:1240px;margin:0 auto;
+  }
+  .logo{
+    display:flex;align-items:center;gap:10px;
+    font-family:var(--mono);font-weight:700;font-size:14px;
+    letter-spacing:.14em;text-transform:uppercase;
+  }
+  .logo .dot-grid{display:grid;grid-template-columns:repeat(2,5px);gap:3px;}
+  .logo .dot-grid span{width:5px;height:5px;border-radius:1px;background:var(--cyan);}
+  .logo .dot-grid span:nth-child(2){background:var(--purple);}
+  .logo .dot-grid span:nth-child(3){background:var(--green);}
+  .logo .dot-grid span:nth-child(4){background:var(--pink);}
+
+  .nav-links{display:flex;gap:34px;font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;color:var(--text-dim);}
+  .nav-links a{transition:color .2s;text-transform:uppercase;}
+  .nav-links a:hover{color:var(--text);}
+
+  .btn{
+    font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;
+    padding:10px 18px;border-radius:6px;border:1px solid var(--border);
+    display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+    transition:.2s;background:transparent;color:var(--text);
+  }
+  .btn-primary{background:var(--cyan);color:#04141a;border-color:var(--cyan);font-weight:700;}
+  .btn-primary:hover{background:#4de0f5;transform:translateY(-1px);}
+  .btn-ghost:hover{border-color:var(--text-dim);background:var(--surface);}
+
+  /* ---------- HERO ---------- */
+  .hero{
+    display:grid;grid-template-columns:1.05fr 1fr;gap:56px;
+    padding:96px 0 90px;align-items:center;
+  }
+  .eyebrow{
+    font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--cyan);display:flex;align-items:center;gap:10px;margin-bottom:22px;
+  }
+  .eyebrow::before{content:'';width:7px;height:7px;border-radius:1px;background:var(--cyan);box-shadow:0 0 10px var(--cyan);}
+
+  h1{
+    font-family:var(--display);font-weight:600;
+    font-size:clamp(38px,4.6vw,58px);
+    line-height:1.06;letter-spacing:-.01em;
+    margin-bottom:24px;
+  }
+  h1 .grad{
+    background:linear-gradient(90deg,var(--cyan),var(--purple) 45%, var(--pink));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+
+  .hero p.lead{
+    font-size:17px;color:var(--text-dim);max-width:460px;margin-bottom:34px;
+  }
+  .hero-ctas{display:flex;gap:14px;margin-bottom:30px;}
+
+  .hero-note{
+    font-family:var(--mono);font-size:12px;color:var(--text-faint);
+    display:flex;align-items:center;gap:8px;
+  }
+  .hero-note .avatars{display:flex;}
+  .hero-note .avatars span{
+    width:20px;height:20px;border-radius:50%;border:2px solid var(--bg);
+    margin-left:-6px;display:inline-block;
+  }
+  .hero-note .avatars span:first-child{margin-left:0;}
+
+  /* ---------- HERO BOARD MOCK ---------- */
+  .board-mock{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:18px;box-shadow:0 30px 80px -30px rgba(0,0,0,.6);
+    position:relative;
+  }
+  .board-mock::after{
+    content:'';position:absolute;inset:-1px;border-radius:14px;
+    background:linear-gradient(135deg, rgba(34,211,238,.15), transparent 30%, transparent 70%, rgba(244,114,182,.12));
+    pointer-events:none;
+  }
+  .board-mock-head{
+    display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:0 4px;
+  }
+  .board-mock-head span.dot{width:9px;height:9px;border-radius:50%;background:var(--border);}
+  .board-mock-head .title{
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--text-faint);
+    text-transform:uppercase;margin-left:6px;
+  }
+
+  .mini-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .mini-col{
+    background:var(--bg-2);border:1px solid var(--border-soft);border-radius:10px;
+    padding:12px;min-height:250px;
+  }
+  .mini-col .bar{height:3px;border-radius:2px;margin-bottom:12px;}
+  .mini-col-label{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    display:flex;justify-content:space-between;color:var(--text-dim);margin-bottom:12px;
+  }
+  .mini-card{
+    background:var(--surface-2);border:1px solid var(--border);border-radius:8px;
+    padding:10px;margin-bottom:10px;opacity:0;transform:translateY(10px);
+    animation:cardIn .5s ease forwards;
+  }
+  .mini-card .tag{
+    display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.04em;
+    padding:2px 6px;border-radius:4px;margin-bottom:7px;background:rgba(255,255,255,.06);
+  }
+  .mini-card .title{font-size:12px;font-weight:600;color:var(--text);}
+  .mini-card .title.done{color:var(--text-faint);text-decoration:line-through;}
+
+  @keyframes cardIn{to{opacity:1;transform:translateY(0);}}
+
+  .check{
+    width:14px;height:14px;border-radius:50%;border:1.5px solid var(--text-faint);
+    flex-shrink:0;position:relative;
+  }
+  .check.checked{background:var(--green);border-color:var(--green);}
+  .check.checked::after{
+    content:'';position:absolute;left:3.5px;top:1px;width:4px;height:7px;
+    border:solid #06231a;border-width:0 1.5px 1.5px 0;transform:rotate(40deg);
+  }
+  .mini-card-top{display:flex;justify-content:space-between;align-items:flex-start;}
+
+  /* ---------- TICKER ---------- */
+  .ticker-wrap{
+    border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);
+    overflow:hidden;padding:18px 0;background:var(--bg-2);
+  }
+  .ticker{display:flex;width:max-content;animation:scroll 28s linear infinite;}
+  .ticker span{
+    font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;
+    padding:0 28px;color:var(--text-dim);white-space:nowrap;display:flex;align-items:center;gap:10px;
+  }
+  .ticker span::before{content:'';width:6px;height:6px;border-radius:1px;}
+  @keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+  /* ---------- SECTION SHARED ---------- */
+  section{padding:100px 0;}
+  .section-head{max-width:600px;margin-bottom:56px;}
+  .section-head h2{
+    font-family:var(--display);font-weight:600;font-size:clamp(28px,3.2vw,38px);
+    letter-spacing:-.01em;margin-top:14px;
+  }
+  .section-head p{color:var(--text-dim);margin-top:14px;font-size:15.5px;max-width:520px;}
+
+  /* ---------- FEATURES ---------- */
+  .feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .feature-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;
+    padding:22px 20px 24px;position:relative;overflow:hidden;transition:.25s;
+  }
+  .feature-card::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  }
+  .feature-card:hover{transform:translateY(-4px);border-color:var(--border-soft);background:var(--surface-2);}
+  .feature-card .num{font-family:var(--mono);font-size:11px;color:var(--text-faint);margin-bottom:20px;display:block;}
+  .feature-card h3{font-family:var(--display);font-size:17px;font-weight:600;margin-bottom:9px;}
+  .feature-card p{font-size:13.5px;color:var(--text-dim);line-height:1.6;}
+  .feature-card .mini-tag{
+    display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;
+    padding:3px 7px;border-radius:4px;margin-bottom:14px;background:rgba(255,255,255,.05);
+  }
+
+  /* ---------- HOW IT WORKS ---------- */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:0;position:relative;}
+  .steps::before{
+    content:'';position:absolute;top:26px;left:8%;right:8%;height:1px;
+    background:repeating-linear-gradient(90deg, var(--border) 0 6px, transparent 6px 12px);
+  }
+  .step{position:relative;padding-right:20px;}
+  .step .step-num{
+    width:52px;height:52px;border-radius:50%;background:var(--bg);
+    border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:14px;font-weight:700;margin-bottom:22px;position:relative;z-index:1;
+  }
+  .step h3{font-family:var(--display);font-size:18px;font-weight:600;margin-bottom:10px;}
+  .step p{font-size:14px;color:var(--text-dim);max-width:300px;}
+
+  /* ---------- GALLERY / DOMAINS ---------- */
+  .domain-scroll{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+  }
+  .domain-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;
+    padding:18px;transition:.25s;
+  }
+  .domain-card:hover{border-color:var(--border-soft);background:var(--surface-2);}
+  .domain-card .dhead{
+    display:flex;align-items:center;gap:8px;margin-bottom:14px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  }
+  .domain-card .dhead .sw{width:8px;height:8px;border-radius:2px;}
+  .domain-card .dhead .count{
+    margin-left:auto;background:var(--surface-2);border:1px solid var(--border);
+    border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text-dim);
+  }
+  .domain-card .dcard{
+    background:var(--surface-2);border:1px solid var(--border);border-radius:8px;
+    padding:10px;margin-bottom:8px;
+  }
+  .domain-card .dcard .t{font-size:12px;font-weight:600;}
+  .domain-card .dcard .tag{
+    font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;padding:2px 5px;
+    border-radius:3px;background:rgba(255,255,255,.06);display:inline-block;margin-bottom:6px;
+  }
+
+  /* ---------- CTA ---------- */
+  .cta-section{
+    background:var(--surface);border:1px solid var(--border);border-radius:20px;
+    padding:70px 60px;text-align:center;position:relative;overflow:hidden;margin:0 32px;
+  }
+  .cta-section::before{
+    content:'';position:absolute;width:600px;height:600px;border-radius:50%;
+    background:radial-gradient(circle, rgba(34,211,238,.12), transparent 70%);
+    top:-300px;left:50%;transform:translateX(-50%);pointer-events:none;
+  }
+  .cta-section h2{
+    font-family:var(--display);font-weight:600;font-size:clamp(26px,3.4vw,40px);
+    margin-bottom:16px;position:relative;
+  }
+  .cta-section p{color:var(--text-dim);margin-bottom:32px;position:relative;}
+  .cta-section .hero-ctas{justify-content:center;position:relative;}
+
+  /* ---------- FOOTER ---------- */
+  footer{padding:60px 0 40px;}
+  .footer-inner{
+    display:flex;justify-content:space-between;align-items:center;
+    border-top:1px solid var(--border-soft);padding-top:32px;
+    font-family:var(--mono);font-size:12px;color:var(--text-faint);
+  }
+  .footer-links{display:flex;gap:24px;}
+  .footer-links a:hover{color:var(--text-dim);}
+
+  @media (max-width:980px){
+    .hero{grid-template-columns:1fr;padding-top:60px;}
+    .feature-grid{grid-template-columns:repeat(2,1fr);}
+    .steps{grid-template-columns:1fr;gap:36px;}
+    .steps::before{display:none;}
+    .domain-scroll{grid-template-columns:repeat(2,1fr);}
+    .nav-links{display:none;}
+    .cta-section{margin:0 16px;padding:50px 24px;}
+    .wrap{padding:0 20px;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important;transition:none !important;}
+  }
+</style>
 </head>
 <body>
 
-<div id="app">
-
-  <!-- ===== SIDEBAR ===== -->
-  <aside id="sidebar" class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <defs>
-            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#00e5ff" />
-              <stop offset="100%" stop-color="#ff4fcd" />
-            </linearGradient>
-          </defs>
-          <rect x="2.5" y="2.5" width="8" height="10" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
-          <rect x="13.5" y="2.5" width="8" height="6" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
-          <rect x="13.5" y="11.5" width="8" height="10" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
-          <rect x="2.5" y="15.5" width="8" height="6" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
-        </svg>
-        <span class="logo-text">KanbanFlow</span>
-      </div>
-      <div class="sidebar-header-actions">
-        <button id="hamburger-btn" class="icon-btn" title="Settings & Tags">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
-        <button id="sidebar-toggle" class="icon-btn" title="Collapse sidebar">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-      </div>
-    </div>
-
-    <div class="sidebar-section-label">PROJECTS</div>
-    <div id="boards-list" class="boards-list"></div>
-
-    <button id="generate-daily-btn" class="add-board-btn daily-btn" style="display: none;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Generate Today's Tasks
-    </button>
-    <button id="add-project-btn" class="add-board-btn">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-        <rect x="2.5" y="2.5" width="8" height="10" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
-        <rect x="13.5" y="2.5" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
-        <rect x="13.5" y="11.5" width="8" height="10" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
-        <rect x="2.5" y="15.5" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
+<div class="scene">
+  <canvas id="mesh"></canvas>
+  <div class="glow"></div>
+</div>
+<nav>
+  <div class="nav-inner">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <defs>
+          <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#00e5ff" />
+            <stop offset="100%" stop-color="#ff4fcd" />
+          </linearGradient>
+        </defs>
+        <rect x="2.5" y="2.5" width="8" height="10" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
+        <rect x="13.5" y="2.5" width="8" height="6" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
+        <rect x="13.5" y="11.5" width="8" height="10" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
+        <rect x="2.5" y="15.5" width="8" height="6" rx="2" stroke="url(#logoGradient)" stroke-width="2.5" />
       </svg>
-      New Project
-    </button>
-
-    <button id="add-board-btn" class="add-board-btn" style="margin-top: 8px;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      New Board
-    </button>
-    
-    <button id="ai-board-btn" class="add-board-btn ai-btn">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3 6 6 3-6 3-3 6-3-6-6-3 6-3z"/></svg>
-      Generate with AI
-    </button>
-
-    <div class="sidebar-footer">
-      <button id="export-btn" class="sidebar-action-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Export JSON
-      </button>
-      <label class="sidebar-action-btn" style="cursor:pointer">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Import JSON
-        <input type="file" id="import-file" accept=".json" style="display:none" />
-      </label>
+      KanbanFlow
     </div>
-  </aside>
-
-  <!-- ===== SETTINGS / TAG MANAGER PANEL ===== -->
-  <div id="settings-panel" class="settings-panel" style="display:none">
-    <div class="settings-panel-header">
-      <h2 class="settings-panel-title">Settings</h2>
-      <button id="settings-close-btn" class="icon-btn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#domains">Boards</a>
+      <a href="#privacy">Privacy</a>
     </div>
-
-    <div class="settings-body">
-      <div class="settings-section">
-        <div class="settings-section-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-          Manage Tags
-        </div>
-        <p class="settings-section-desc">Create custom tags you can apply to any card.</p>
-
-        <!-- Existing tags list -->
-        <div id="tag-manager-list" class="tag-manager-list"></div>
-
-        <!-- Add new tag form -->
-        <div class="add-tag-form">
-          <input type="text" id="new-tag-name" class="field-input" placeholder="Tag name" maxlength="30" />
-          <div class="tag-color-row" id="new-tag-color-row"></div>
-          <button class="btn-primary btn-sm" id="add-tag-btn">Add Tag</button>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <div class="settings-section-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          AI Integration
-        </div>
-        <p class="settings-section-desc">Configure your AI provider to enable board generation.</p>
-        <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
-          <select id="ai-provider-select" class="field-input" style="cursor:pointer; background-color:#16192b;">
-            <option value="gemini">Google Gemini (Flash)</option>
-            <option value="claude">Anthropic Claude (Haiku)</option>
-          </select>
-          <input type="password" id="ai-api-key" class="field-input" placeholder="Gemini API Key..." />
-          <input type="password" id="claude-api-key" class="field-input" placeholder="Claude API Key..." style="display:none;" />
-          <p class="api-key-disclaimer" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px;">
-            Your API key is stored only in this browser (IndexedDB) and is sent directly to Google's API. It is never sent to or stored on any server operated by this app.
-          </p>
-          <button class="btn-primary btn-sm" id="save-ai-key-btn" style="align-self:flex-start;">Save Settings</button>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <div class="settings-section-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Storage
-        </div>
-        <p class="settings-section-desc">All data is stored locally in your browser (IndexedDB).</p>
-        <div id="storage-info" class="storage-info"></div>
-      </div>
-      <div class="settings-section">
-        <div class="settings-section-title" style="color: #ff4d4d;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          Danger Zone
-        </div>
-        <p class="settings-section-desc">Permanently erase all boards, tasks, and custom tags from your browser.</p>
-                <button class="btn-ghost btn-sm" id="clear-all-data-btn" style="color:#ff4d4d; border-color:rgba(255,77,77,0.3); width:100%; margin-top:8px;">
-          Clear All Data
-        </button>
-        </div>
-    </div>
+    <a href="board.html" class="btn btn-primary">Open board →</a>
   </div>
-  <div id="settings-overlay" class="settings-overlay" style="display:none"></div>
+</nav>
 
-  <!-- ===== MAIN CONTENT ===== -->
-  <main id="main-content" class="main-content">
-
-    <header class="topbar">
-      <div class="topbar-left">
-        <button id="sidebar-open-toggle" class="icon-btn">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
-        <button id="back-to-dashboard-btn" class="icon-btn" style="display:none; color:var(--neon-cyan); border:1px solid var(--neon-cyan); border-radius:4px; padding:0 8px; width:auto;">
-          Dashboard
-        </button>
-        <div class="board-title-wrap">
-          <h1 id="board-title" class="board-title" contenteditable="false" spellcheck="false">Select a Project</h1>
-          <button id="rename-board-btn" class="icon-btn rename-btn" title="Rename" style="display:none">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-        </div>
+<div class="wrap">
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Local-first · AI-powered · Any sector</div>
+      <h1>Describe a project.<br>Watch the board<br><span class="grad">build itself.</span></h1>
+      <p class="lead">Type what you're organizing — a career, a renovation, a client pipeline — and AI streams in the columns, cards, and tags in real time. Everything lives in your browser. No accounts, no server, no one else sees it.</p>
+      <div class="hero-ctas">
+        <a href="board.html" class="btn btn-primary">Create your board →</a>
+        <a href="#how" class="btn btn-ghost">See how it works</a>
       </div>
-      <div class="topbar-right">
-        <div class="search-wrap">
-          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="search-input" class="search-input" placeholder="Search cards" />
-          <button id="search-clear" class="search-clear" style="display:none">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div id="label-filter-wrap" style="display:none">
-          <button class="label-filter-toggle" id="label-filter-toggle" title="Filter by tag">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-          </button>
-        </div>
-
-        <button id="add-column-btn" class="topbar-btn" style="display:none">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Column
-        </button>
-      </div>
-    </header>
-
-    <div id="label-filter-dropdown" class="label-filter-dropdown" style="display:none"></div>
-
-    <div id="dashboard-area" class="dashboard-area" style="display:none">
-      <div id="dashboard-grid" class="dashboard-grid"></div>
-    </div>
-
-    <div id="board-top-progress-container"></div>
-
-    <div id="board-area" class="board-area">
-      <div id="empty-state" class="empty-state">
-        <div class="empty-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" opacity="0.3">
-            <rect x="2.5" y="2.5" width="8" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="13.5" y="2.5" width="8" height="6" rx="2" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="13.5" y="11.5" width="8" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="2.5" y="15.5" width="8" height="6" rx="2" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-        </div>
-        <h2 class="empty-title">No project selected</h2>
-        <p class="empty-subtitle">Create a new project to get started.</p>
-        <button class="btn-primary" id="empty-add-board-btn">Create Project</button>
+      <div class="hero-note">
+        <span class="avatars">
+          <span style="background:var(--cyan)"></span>
+          <span style="background:var(--purple)"></span>
+          <span style="background:var(--pink)"></span>
+        </span>
+        100% IndexedDB storage. No sign-up. No tracking.
       </div>
     </div>
-  </main>
+
+    <div class="board-mock">
+      <div class="board-mock-head">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="title">your dashboard</span>
+      </div>
+      <div class="mini-cols">
+        <div class="mini-col">
+          <div class="bar" style="background:var(--cyan)"></div>
+          <div class="mini-col-label"><span>Career</span><span>2</span></div>
+          <div class="mini-card" style="animation-delay:.1s">
+            <div class="mini-card-top">
+              <span class="tag" style="color:var(--cyan)">Project</span>
+              <span class="check"></span>
+            </div>
+            <div class="title">Ship one major feature</div>
+          </div>
+          <div class="mini-card" style="animation-delay:.25s">
+            <div class="mini-card-top">
+              <span class="tag" style="color:var(--purple)">JobSearch</span>
+              <span class="check checked"></span>
+            </div>
+            <div class="title done">Apply to 3 roles</div>
+          </div>
+        </div>
+        <div class="mini-col">
+          <div class="bar" style="background:var(--green)"></div>
+          <div class="mini-col-label"><span>Health</span><span>3</span></div>
+          <div class="mini-card" style="animation-delay:.4s">
+            <div class="mini-card-top">
+              <span class="tag" style="color:var(--green)">Fitness</span>
+              <span class="check"></span>
+            </div>
+            <div class="title">Train five days</div>
+          </div>
+          <div class="mini-card" style="animation-delay:.55s">
+            <div class="mini-card-top">
+              <span class="tag" style="color:var(--amber)">Nutrition</span>
+              <span class="check"></span>
+            </div>
+            <div class="title">Prep healthy lunches</div>
+          </div>
+        </div>
+        <div class="mini-col">
+          <div class="bar" style="background:var(--pink)"></div>
+          <div class="mini-col-label"><span>Personal</span><span>2</span></div>
+          <div class="mini-card" style="animation-delay:.7s">
+            <div class="mini-card-top">
+              <span class="tag" style="color:var(--pink)">Mindfulness</span>
+              <span class="check"></span>
+            </div>
+            <div class="title">Read 30 min tonight</div>
+          </div>
+          <div class="mini-card" style="animation-delay:.85s">
+            <div class="mini-card-top">
+              <span class="tag" style="color:var(--blue)">Relationships</span>
+              <span class="check" id="pulseCheck"></span>
+            </div>
+            <div class="title" id="pulseTitle">Call family</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
-<!-- ===== CUSTOM INPUT MODAL (replaces all prompt() calls) ===== -->
-<div id="input-modal-overlay" class="dialog-overlay" style="display:none">
-  <div class="input-modal">
-    <div class="input-modal-header">
-      <span id="input-modal-icon" class="input-modal-icon"></span>
-      <h3 id="input-modal-title" class="input-modal-title"></h3>
-    </div>
-    <p id="input-modal-subtitle" class="input-modal-subtitle" style="display:none"></p>
-    <input type="text" id="input-modal-field" class="input-modal-field" maxlength="120" />
-    <div class="input-modal-actions">
-      <button class="btn-ghost btn-sm" id="input-modal-ai" style="display:none; color: var(--neon-cyan); border: 1px solid var(--neon-cyan);">Generate with AI</button>
-      <div style="flex:1"></div>
-      <button class="btn-ghost btn-sm" id="input-modal-cancel">Cancel</button>
-      <button class="btn-primary btn-sm" id="input-modal-confirm">Create</button>
-    </div>
+<div class="ticker-wrap">
+  <div class="ticker" id="ticker">
+    <span style="--c:var(--cyan)">FITNESS</span>
+    <span style="--c:var(--purple)">HOME</span>
+    <span style="--c:var(--green)">CAREER</span>
+    <span style="--c:var(--amber)">SIDE HUSTLE</span>
+    <span style="--c:var(--pink)">COLLEGE</span>
+    <span style="--c:var(--blue)">AI PROJECTS</span>
+    <span style="--c:var(--cyan)">STARTUP</span>
+    <span style="--c:var(--purple)">CLIENTS</span>
+    <span style="--c:var(--green)">FREELANCING</span>
+    <span style="--c:var(--amber)">CONTENT</span>
+    <span style="--c:var(--pink)">MARKETING</span>
+    <span style="--c:var(--blue)">DESIGN</span>
+    <span style="--c:var(--cyan)">SOFTWARE</span>
+    <span style="--c:var(--purple)">GAME DEV</span>
+    <span style="--c:var(--green)">RESEARCH</span>
+    <span style="--c:var(--amber)">WRITING</span>
+    <span style="--c:var(--pink)">READING</span>
+    <span style="--c:var(--blue)">FINANCES</span>
+    <span style="--c:var(--cyan)">TRAVEL</span>
+    <span style="--c:var(--purple)">EVENTS</span>
+    <span style="--c:var(--green)">GOALS</span>
+    <span style="--c:var(--amber)">HABITS</span>
+    <span style="--c:var(--pink)">MEAL PREP</span>
+    <span style="--c:var(--blue)">SHOPPING</span>
+    <span style="--c:var(--cyan)">BUSINESS</span>
+    <span style="--c:var(--purple)">PRODUCT LAUNCH</span>
+    <span style="--c:var(--green)">ROADMAP</span>
+    <span style="--c:var(--amber)">STUDY PLAN</span>
+    <span style="--c:var(--pink)">OPEN SOURCE</span>
+    <span style="--c:var(--cyan)">FITNESS</span>
+    <span style="--c:var(--purple)">HOME</span>
+    <span style="--c:var(--green)">CAREER</span>
+    <span style="--c:var(--amber)">SIDE HUSTLE</span>
+    <span style="--c:var(--pink)">COLLEGE</span>
+    <span style="--c:var(--blue)">AI PROJECTS</span>
+    <span style="--c:var(--cyan)">STARTUP</span>
+    <span style="--c:var(--purple)">CLIENTS</span>
+    <span style="--c:var(--green)">FREELANCING</span>
+    <span style="--c:var(--amber)">CONTENT</span>
+    <span style="--c:var(--pink)">MARKETING</span>
+    <span style="--c:var(--blue)">DESIGN</span>
+    <span style="--c:var(--cyan)">SOFTWARE</span>
+    <span style="--c:var(--purple)">GAME DEV</span>
+    <span style="--c:var(--green)">RESEARCH</span>
+    <span style="--c:var(--amber)">WRITING</span>
+    <span style="--c:var(--pink)">READING</span>
+    <span style="--c:var(--blue)">FINANCES</span>
+    <span style="--c:var(--cyan)">TRAVEL</span>
+    <span style="--c:var(--purple)">EVENTS</span>
+    <span style="--c:var(--green)">GOALS</span>
+    <span style="--c:var(--amber)">HABITS</span>
+    <span style="--c:var(--pink)">MEAL PREP</span>
+    <span style="--c:var(--blue)">SHOPPING</span>
+    <span style="--c:var(--cyan)">BUSINESS</span>
+    <span style="--c:var(--purple)">PRODUCT LAUNCH</span>
+    <span style="--c:var(--green)">ROADMAP</span>
+    <span style="--c:var(--amber)">STUDY PLAN</span>
+    <span style="--c:var(--pink)">OPEN SOURCE</span>
   </div>
 </div>
 
-<!-- ===== TASK DIALOG ===== -->
-<div id="task-dialog-overlay" class="dialog-overlay" style="display:none">
-  <div class="task-dialog" role="dialog" aria-modal="true">
-    <div class="dialog-header">
-      <div class="dialog-title-wrap">
-        <div class="dialog-color-bar" id="dialog-color-bar"></div>
-        <input type="text" id="dialog-task-title-input" class="dialog-title-input" placeholder="Task title" maxlength="200" />
-      </div>
-      <button class="icon-btn" id="dialog-close-btn" title="Close">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+<div class="wrap">
+  <section id="features">
+    <div class="section-head">
+      <div class="eyebrow">Features</div>
+      <h2>Built for boards that never stay small</h2>
+      <p>Every column gets its own color, its own tags, its own rules — whether AI built it in seconds or you laid it out card by card.</p>
     </div>
-
-    <div class="dialog-tabs">
-      <button class="dialog-tab active" data-tab="details">Details</button>
-      <button class="dialog-tab" data-tab="links">Links</button>
-      <button class="dialog-tab" data-tab="images">Images</button>
-    </div>
-
-    <div class="dialog-body">
-      <!-- Details Tab -->
-      <div class="tab-panel active" id="tab-details">
-        <div class="field-group">
-          <label class="field-label">Description</label>
-          <textarea id="dialog-desc" class="dialog-textarea" placeholder="Add a description" rows="4"></textarea>
-        </div>
-        <div class="field-group">
-          <label class="field-label">Tags</label>
-          <div id="label-picker" class="label-picker"></div>
-        </div>
-        <div class="field-group">
-          <label class="field-label">Card Accent Color</label>
-          <div id="card-color-picker" class="color-picker-row"></div>
-        </div>
+    <div class="feature-grid">
+      <div class="feature-card" style="--accent:var(--green)">
+        <span class="mini-tag" style="color:var(--green)">AI generation</span>
+        <h3>Describe it, watch it stream in</h3>
+        <p>Type a project in plain language and boards, columns, cards, and tags generate live — built to handle complex, multi-disciplinary setups, not just to-do lists.</p>
       </div>
-
-      <!-- Links Tab -->
-      <div class="tab-panel" id="tab-links">
-        <div id="links-list" class="links-list"></div>
-        <div class="add-link-form">
-          <input type="text" id="link-title-input" class="field-input" placeholder="Link title (optional)" maxlength="100" />
-          <input type="url" id="link-url-input" class="field-input" placeholder="https://" />
-          <button class="btn-primary btn-sm" id="add-link-btn">Add Link</button>
-        </div>
+      <div class="feature-card" style="--accent:var(--cyan)">
+        <span class="mini-tag" style="color:var(--cyan)">Local-first</span>
+        <h3>Nothing leaves your browser</h3>
+        <p>Boards, cards, tags, and images live in IndexedDB on your machine. No accounts, no database, no server holding your data.</p>
       </div>
-
-      <!-- Images Tab -->
-      <div class="tab-panel" id="tab-images">
-        <div id="images-grid" class="images-grid"></div>
-        <div class="image-upload-area" id="image-upload-area">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          <p>Drag & drop, paste from clipboard, or click to upload</p>
-          <input type="file" id="image-file-input" accept="image/*" multiple style="display:none" />
-          <button class="btn-outline btn-sm" id="image-upload-btn">Choose Files</button>
-        </div>
-        <p class="image-note" id="image-note"></p>
+      <div class="feature-card" style="--accent:var(--amber)">
+        <span class="mini-tag" style="color:var(--amber)">Today's board</span>
+        <h3>A board that resets itself</h3>
+        <p>Drop in your appointments and priorities and get a daily planning board with an hours-left badge — it auto-expires after 24 hours so today never clutters tomorrow.</p>
+      </div>
+      <div class="feature-card" style="--accent:var(--purple)">
+        <span class="mini-tag" style="color:var(--purple)">Tags & filters</span>
+        <h3>Find anything in one search</h3>
+        <p>Tag cards by project, mood, or person, then filter across every board at once — search and it doesn't matter which column it's hiding in.</p>
+      </div>
+      <div class="feature-card" style="--accent:var(--pink)">
+        <span class="mini-tag" style="color:var(--pink)">Drag & drop</span>
+        <h3>Reorder without friction</h3>
+        <p>Smooth, touch-enabled drag-and-drop across cards and columns, so rearranging priorities feels as fast as thinking of them.</p>
+      </div>
+      <div class="feature-card" style="--accent:var(--blue)">
+        <span class="mini-tag" style="color:var(--blue)">Backup & restore</span>
+        <h3>Your data, exportable anytime</h3>
+        <p>Export every board and setting to a single file, or import an old backup — with automatic cleanup so nothing comes in broken.</p>
       </div>
     </div>
+  </section>
 
-    <div class="dialog-footer">
-      <div class="dialog-footer-left">
-        <button class="btn-danger btn-sm" id="delete-task-btn">Delete Card</button>
+  <section id="how">
+    <div class="section-head">
+      <div class="eyebrow">How it works</div>
+      <h2>Three steps, then it's just yours</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num" style="border-color:var(--cyan);color:var(--cyan)">01</div>
+        <h3>Describe the project</h3>
+        <p>One sentence is enough — a job search, a renovation, a launch plan. Any sector, any scope.</p>
       </div>
-      <div class="dialog-footer-right">
-        <button class="btn-ghost btn-sm" id="cancel-task-btn">Cancel</button>
-        <button class="btn-primary btn-sm" id="save-task-btn">Save Changes</button>
+      <div class="step">
+        <div class="step-num" style="border-color:var(--purple);color:var(--purple)">02</div>
+        <h3>AI streams in the board</h3>
+        <p>Columns, cards, descriptions, and tags appear in real time — or generate one extra column later with a click.</p>
+      </div>
+      <div class="step">
+        <div class="step-num" style="border-color:var(--pink);color:var(--pink)">03</div>
+        <h3>Drag, tag, check off</h3>
+        <p>Rearrange anything, filter by tag, and watch completed cards strike through as you go.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="domains">
+    <div class="section-head">
+      <div class="eyebrow">Made for any sector</div>
+      <h2>Same board, different worlds</h2>
+      <p>A career pipeline, a training plan, a chore list, a client project — AI shapes the same board differently for each one.</p>
+    </div>
+    <div class="domain-scroll">
+      <div class="domain-card">
+        <div class="dhead"><span class="sw" style="background:var(--cyan)"></span>Career<span class="count">2</span></div>
+        <div class="dcard"><span class="tag" style="color:var(--cyan)">Project</span><div class="t">Complete one major feature</div></div>
+        <div class="dcard"><span class="tag" style="color:var(--purple)">JobSearch</span><div class="t">Apply to three roles</div></div>
+      </div>
+      <div class="domain-card">
+        <div class="dhead"><span class="sw" style="background:var(--green)"></span>Health<span class="count">4</span></div>
+        <div class="dcard"><span class="tag" style="color:var(--green)">Fitness</span><div class="t">Train five days</div></div>
+        <div class="dcard"><span class="tag" style="color:var(--amber)">Nutrition</span><div class="t">Prep healthy lunches</div></div>
+      </div>
+      <div class="domain-card">
+        <div class="dhead"><span class="sw" style="background:var(--amber)"></span>Home<span class="count">3</span></div>
+        <div class="dcard"><span class="tag" style="color:var(--amber)">Chores</span><div class="t">Do laundry</div></div>
+        <div class="dcard"><span class="tag" style="color:var(--blue)">Errands</span><div class="t">Grocery shopping</div></div>
+      </div>
+      <div class="domain-card">
+        <div class="dhead"><span class="sw" style="background:var(--blue)"></span>Landscaping<span class="count">5</span></div>
+        <div class="dcard"><span class="tag" style="color:var(--blue)">SiteSurvey</span><div class="t">Assess the site</div></div>
+        <div class="dcard"><span class="tag" style="color:var(--purple)">Design</span><div class="t">Develop concept boards</div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
+  <section id="privacy" style="padding-top:0;">
+    <div class="section-head">
+      <div class="eyebrow">Privacy</div>
+      <h2>Your boards stay on your machine</h2>
+      <p>No server database, no accounts, no telemetry. AI requests go straight from your browser to your chosen model provider — nowhere else.</p>
+    </div>
+    <div class="feature-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="feature-card" style="--accent:var(--cyan)">
+        <span class="mini-tag" style="color:var(--cyan)">Storage</span>
+        <h3>IndexedDB, not the cloud</h3>
+        <p>Boards, cards, tags, and attached images are stored locally in your browser — nothing syncs to a server by default.</p>
+      </div>
+      <div class="feature-card" style="--accent:var(--green)">
+        <span class="mini-tag" style="color:var(--green)">API keys</span>
+        <h3>Kept local, sent once</h3>
+        <p>Your AI key stays in your browser's storage and is never routed through or held on a third-party server.</p>
+      </div>
+      <div class="feature-card" style="--accent:var(--purple)">
+        <span class="mini-tag" style="color:var(--purple)">No tracking</span>
+        <h3>Nothing watching you use it</h3>
+        <p>No telemetry, no cookie tracking, no analytics running in the background.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<section>
+  <div class="cta-section">
+    <h2>Describe it. Watch it build.</h2>
+    <p>Start with one project — the rest of your boards can wait until you need them.</p>
+    <div class="hero-ctas">
+      <a href="board.html" class="btn btn-primary">Create your board →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-inner">
+      <span>© 2026 KanbanFlow — local-first, always</span>
+      <div class="footer-links">
+        <a href="#">Privacy</a>
+        <a href="#">Changelog</a>
+        <a href="#">Support</a>
       </div>
     </div>
   </div>
-</div>
+</footer>
 
-<!-- ===== CONFIRM DIALOG ===== -->
-<div id="confirm-overlay" class="dialog-overlay" style="display:none">
-  <div class="confirm-dialog">
-    <div class="confirm-icon" id="confirm-icon">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-    </div>
-    <h3 id="confirm-title">Are you sure?</h3>
-    <p id="confirm-message"></p>
-    <div class="confirm-actions">
-      <button class="btn-ghost btn-sm" id="confirm-cancel-btn">Cancel</button>
-      <button class="btn-danger btn-sm" id="confirm-ok-btn">Delete</button>
-    </div>
-  </div>
-</div>
+<script>
+  // ticker color dots
+  document.querySelectorAll('.ticker span').forEach(el=>{
+    el.style.setProperty('--dot', getComputedStyle(el).getPropertyValue('--c'));
+  });
+  const style = document.createElement('style');
+  style.innerHTML = `.ticker span::before{background:var(--c);}`;
+  document.head.appendChild(style);
 
-<!-- ===== LIGHTBOX ===== -->
-<div id="lightbox-overlay" class="lightbox-overlay" style="display:none">
-  <button class="lightbox-close" id="lightbox-close">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-  </button>
-  <img id="lightbox-img" class="lightbox-img" src="" alt="Attachment" />
-</div>
+  // pulse the family-call checkbox to suggest live interactivity
+  const check = document.getElementById('pulseCheck');
+  const title = document.getElementById('pulseTitle');
+  let done = false;
+  setInterval(()=>{
+    done = !done;
+    check.classList.toggle('checked', done);
+    title.classList.toggle('done', done);
+  }, 2600);
+</script>
 
-<!-- ===== AI GENERATOR MODAL ===== -->
-<div id="ai-modal-overlay" class="dialog-overlay" style="display:none">
-  <div class="input-modal ai-modal">
-    <div class="input-modal-header">
-      <span class="input-modal-icon" style="background:var(--neon-purple);color:#000">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3 6 6 3-6 3-3 6-3-6-6-3 6-3z"/></svg>
-      </span>
-      <h3 class="input-modal-title">Generate Board with AI</h3>
-    </div>
-    <p class="input-modal-subtitle">Describe the project or task you want to work on. AI will generate a complete board with columns, tasks, and tags.</p>
-    <textarea id="ai-prompt-field" class="dialog-textarea" placeholder="e.g., Paste your detailed multi-week project brief here..." style="min-height: 400px; height: 50vh; max-height: 80vh; width: 100%;"></textarea>
-    
-    <div id="ai-modal-longterm-container" style="margin-top:12px; display:flex; align-items:center; gap:12px;">
-      <label class="toggle-switch">
-        <input type="checkbox" id="ai-long-term-checkbox">
-        <span class="toggle-slider"></span>
-      </label>
-      <div class="field-label" style="text-transform:none; letter-spacing:normal; margin:0; cursor:pointer;" onclick="document.getElementById('ai-long-term-checkbox').click()">
-        This is a long-term project (generates sequential weekly boards)
-      </div>
-    </div>
-    
-    <div style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
-      <label class="field-label" style="display:flex; justify-content:space-between;">
-        Gemini API Key
-        <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--neon-cyan); text-decoration:none; text-transform:none; letter-spacing:normal;">Get an API Key</a>
-      </label>
-      <input type="password" id="ai-modal-api-key" class="field-input" placeholder="Paste your Gemini API key here..." />
-      <p class="api-key-disclaimer" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px; margin-bottom: 0;">
-        Your API key is stored only in this browser (IndexedDB) and is sent directly to Google's API. It is never sent to or stored on any server operated by this app.
-      </p>
-    </div>
+<script>
+(function(){
+  const canvas = document.getElementById('mesh');
+  const ctx = canvas.getContext('2d');
+  let w, h, dpr;
+  let nodes = [];
 
-    <div class="input-modal-actions" style="margin-top:15px">
-      <button class="btn-ghost btn-sm" id="ai-modal-cancel">Cancel</button>
-      <button class="btn-primary btn-sm" id="ai-modal-confirm">Generate</button>
-    </div>
-  </div>
-</div>
+  const PINK = '255,47,176';
+  const CYAN = '33,230,255';
+  const LINK_DIST = 170;
+  const NODE_COUNT_DENSITY = 14000;
 
-<!-- AI Loading State -->
-<div id="ai-loading-overlay" class="dialog-overlay" style="display:none; z-index:9999;">
-<div class="card">
-<div class="orbit-wrap">
-      <div class="ring ring-outer"></div>
-      <div class="ring ring-mid"></div>
-      <div class="ring ring-pulse"></div>
-      <div class="dot-grid"></div>
-    </div>
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    initNodes();
+  }
 
-    <div class="status-block">
-      <div class="status-label">Generating response</div>
-      <div class="status-text">
-        <span id="typed"></span>
-        <span class="cursor"></span>
-      </div>
-    </div>
+  function initNodes(){
+    const count = Math.max(18, Math.floor((w * h) / NODE_COUNT_DENSITY));
+    nodes = [];
+    for (let i = 0; i < count; i++){
+      nodes.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.16,
+        vy: (Math.random() - 0.5) * 0.16,
+        r: 1.2 + Math.random() * 1.4,
+        color: Math.random() < 0.5 ? PINK : CYAN,
+        pulse: Math.random() * Math.PI * 2
+      });
+    }
+  }
 
-    <div class="chips-row" id="chips"></div>
+  function step(){
+    ctx.clearRect(0, 0, w, h);
 
-    <div class="step-dots" id="step-dots">
-      <div class="step-dot" id="sd0"></div>
-      <div class="step-dot" id="sd1"></div>
-      <div class="step-dot" id="sd2"></div>
-      <div class="step-dot" id="sd3"></div>
-      <div class="step-dot" id="sd4"></div>
-    </div>
-  <button id="ai-cancel-generation-btn" class="btn-ghost btn-sm" style="margin-top: 10px; width: 100%;">Cancel</button>
-</div>
-</div>
+    for (const n of nodes){
+      n.x += n.vx;
+      n.y += n.vy;
+      if (n.x < -20) n.x = w + 20;
+      if (n.x > w + 20) n.x = -20;
+      if (n.y < -20) n.y = h + 20;
+      if (n.y > h + 20) n.y = -20;
+      n.pulse += 0.014;
+    }
 
-<!-- ===== TOAST ===== -->
-<div id="toast-container" class="toast-container"></div>
+    for (let i = 0; i < nodes.length; i++){
+      for (let j = i + 1; j < nodes.length; j++){
+        const a = nodes[i], b = nodes[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < LINK_DIST){
+          const alpha = (1 - dist / LINK_DIST) * 0.22;
+          const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+          grad.addColorStop(0, `rgba(${a.color},${alpha})`);
+          grad.addColorStop(1, `rgba(${b.color},${alpha})`);
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
 
-<!-- ===== AI RETRY WIDGET ===== -->
-<div id="ai-retry-widget" class="ai-retry-widget" style="display:none; align-items:center; gap:10px;">
-  <svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-  <span>AI Generation in progress...</span>
-  <button id="ai-retry-cancel-btn" style="background:transparent;border:none;color:var(--text-secondary);cursor:pointer;margin-left:auto;font-size:14px;padding:0 5px;" title="Cancel"></button>
-</div>
+    for (const n of nodes){
+      const pulseAlpha = 0.55 + Math.sin(n.pulse) * 0.4;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${n.color},${pulseAlpha})`;
+      ctx.shadowColor = `rgba(${n.color},0.8)`;
+      ctx.shadowBlur = 6;
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
 
-<script src="https://cdn.jsdelivr.net/npm/jsonrepair@3.4.0/lib/umd/jsonrepair.min.js"></script>
-<script src="default_project.js"></script>
-<script src="app.js"></script>
+    requestAnimationFrame(step);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduceMotion) requestAnimationFrame(step);
+})();
+</script>
 
 </body>
 </html>
-
-
-
-
-
-

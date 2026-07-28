@@ -7,6 +7,7 @@
  */
 
 'use strict';
+localStorage.setItem('kanban_has_visited', 'true');
 
 /* ============================================================
    CONSTANTS
@@ -699,7 +700,7 @@ function renderSidebar() {
         </svg>
         <div style="display:flex; flex-direction:column; min-width:0; overflow:hidden;">
           <div style="display:flex; align-items:center;">
-            <span class="board-item-name" style="margin-bottom:2px;" title="${escHtml(project.name)}">${escHtml(project.name)}</span>
+            <span class="board-item-name" style="margin-bottom:2px;" title="${escHtml(project.name)}">${escHtml((project.name || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()))}</span>
             ${badgeHtml}
           </div>
           <span style="font-size:0.65rem; color:var(--text-muted); line-height:1;">${totalTasks} task(s)</span>
@@ -1351,7 +1352,7 @@ function showQuickAdd(colEl, board, col) {
   const wrap = document.createElement('div');
   wrap.className = 'quick-add-wrap';
   wrap.innerHTML = `
-    <textarea class="quick-add-input" placeholder="Card titleâ€¦ (Enter to add)" rows="2" maxlength="200"></textarea>
+    <textarea class="quick-add-input" placeholder="Card title... (Enter to add)" rows="2" maxlength="200"></textarea>
     <div class="quick-add-actions">
       <button class="btn-primary btn-sm">Add</button>
       <button class="btn-ghost btn-sm">Cancel</button>
@@ -1953,6 +1954,9 @@ function syncStreamedData(parsedData, isLongTerm, targetBoardIndex = null) {
       board = createBoard(boardData.boardName || `Generating...`);
       board.columns = [];
       activeProj.boards.push(board);
+      if (activeProj.type !== 'long' && activeProj.boards.length === 1 && boardData.boardName) {
+        activeProj.name = board.name;
+      }
       renderSidebar();
       if (!state.activeBoardId) {
         state.activeBoardId = board.id;
@@ -1960,6 +1964,9 @@ function syncStreamedData(parsedData, isLongTerm, targetBoardIndex = null) {
       }
     } else if (boardData.boardName && board.name !== boardData.boardName) {
       board.name = boardData.boardName;
+      if (activeProj.type !== 'long' && activeProj.boards.length === 1) {
+        activeProj.name = board.name;
+      }
       renderSidebar();
       updateBoardTitle();
     }

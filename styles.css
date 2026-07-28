@@ -4,15 +4,15 @@
    ======================================== */
 
 :root {
-  --bg-base:        #080e1e;
-  --bg-surface:     #0d1630;
-  --bg-card:        #111d3a;
-  --bg-card-hover:  #162040;
-  --bg-sidebar:     #09112a;
-  --bg-overlay:     rgba(5, 10, 24, 0.88);
-  --bg-input:       #0d1835;
-  --bg-topbar:      #09112aee;
-  --bg-settings:    #0b1428;
+  --bg-base:        #04070f;
+  --bg-surface:     #070b1a;
+  --bg-card:        #0a1224;
+  --bg-card-hover:  #0d172b;
+  --bg-sidebar:     #050916;
+  --bg-overlay:     rgba(4, 7, 15, 0.88);
+  --bg-input:       #070b1a;
+  --bg-topbar:      #050916ee;
+  --bg-settings:    #060a18;
 
   --neon-cyan:      #00e5ff;
   --neon-purple:    #b87eff;
